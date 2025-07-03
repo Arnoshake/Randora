@@ -15,16 +15,86 @@ def seed_from_string(s):
 
 
 def let_there_be_light(size, WORLD_SEED):
-    scale = 0.25
+    scale = 5.0 / size
     world_map = [ [ 0 for _ in range(size)] for _ in range(size)]
     
-    for iterations in range(random.randint(0, 20)):
-        for x in range(size):
-            for y in range(size):
-                world_map[x][y] = pnoise2(x*scale,y*scale,base=WORLD_SEED) + 1 #pnoise2 provides value between interpolation points, straight integers land at 0's, need scale to shift this off
+    rng = random.Random(WORLD_SEED)
+    row_offset = rng.uniform(0, 1000)
+    for row in range(size):
+        for col in range(size):
+            col_offset = rng.uniform(0, 1000)
+            x = (col + col_offset) * scale
+            y = (row + row_offset) * scale
+            val = pnoise2 ( x,y,
+                            octaves=4,
+                            persistence=0.5,
+                            lacunarity=2.0,
+                            base=WORLD_SEED)
+            val = ((val + 1)/2) #normalize btw [0,1]
+
+            if (val < 0.5): #flatten bell curve
+                val = 0.5 * math.sqrt(2 * val)
+            else:
+                val = 1 - 0.5 * math.sqrt(2 * (1 - val))
+            world_map[row][col] = val
+
+            col_offset += scale
+        row_offset +=scale
+    
+    min_val = min(min(row) for row in world_map)
+    max_val = max(max(row) for row in world_map)
+    print (f"MIN: {min_val} MAX: {max_val}")
+
+        
     
     return world_map
+def write_world_to_file(world_map,file_name,print_type):
+    #print_type = "value" or "symbol"
 
+    min_val = min(min(row) for row in world_map)
+    max_val = max(max(row) for row in world_map)
+    
+    height_range = (max_val - min_val)
+    water_threshold = height_range * 0.1 + min_val
+    grass_threshold = height_range * 0.5 + min_val
+    forest_threshold = height_range * 0.9 + min_val
+    mountain_threshold = height_range + min_val
+    
+    terrain_symbols = {
+    "water": "~",
+    "grass": "#",
+    "forest":"#",
+    "mountain": "^"
+    }
+    file = open(file_name + ".txt","w")
+    file.write (f"MIN: {min_val} MAX: {max_val}\nWATER: {water_threshold} GRASS: {grass_threshold} FOREST: {forest_threshold} MTN: {mountain_threshold}\n")
+    size = len(world_map[0])
+    for row in range(size):
+        for col in range(size):
+            
+            if (print_type == "value"):
+                file.write(f"{world_map[row][col]:.2f} ")
+                continue
+            if (print_type == "symbol"):
+                if (world_map[row][col] < water_threshold):
+                    file.write (terrain_symbols["water"])
+                    continue
+                elif (world_map[row][col] < grass_threshold):
+                    file.write (terrain_symbols["grass"])
+                    continue
+                elif (world_map[row][col] < forest_threshold):
+                    file.write (terrain_symbols["forest"])
+                    continue
+                elif (world_map[row][col] < mountain_threshold):
+                    file.write (terrain_symbols["mountain"])
+                    continue
+                else:
+                    file.write ("z")
+
+            
+        file.write("\n")
+    file.close()
+    return
 def display_world_altitude(world_map):
     terrain_symbols = {
     "water": "~",
@@ -40,18 +110,19 @@ def display_world_altitude(world_map):
     size = len(world_map[0])
     for row in range(size):
         for col in range(size):
-            if (world_map[row][col] < 0.3):
-                print (terrain_symbols["water"],end="")
-                continue
-            elif (world_map[row][col] < 1):
-                print (terrain_symbols["grass"],end="")
-                continue
-            elif (world_map[row][col] < 1.5):
-                print (terrain_symbols["forest"],end="")
-                continue
-            elif (world_map[row][col] < 2):
-                print (terrain_symbols["mountain"],end="")
-                continue
+            print(f"{world_map[row][col]:.9f} ", end="")
+            # if (world_map[row][col] < 0.3):
+            #     print (terrain_symbols["water"],end="")
+            #     continue
+            # elif (world_map[row][col] < 0.4):
+            #     print (terrain_symbols["grass"],end="")
+            #     continue
+            # elif (world_map[row][col] < 0.6):
+            #     print (terrain_symbols["forest"],end="")
+            #     continue
+            # elif (world_map[row][col] < 1):
+            #     print (terrain_symbols["mountain"],end="")
+            #     continue
         print("\n")
     return
 
@@ -72,13 +143,14 @@ def fill_world_water():
 
 
 # Testing World Seed Generation
-seedAsString = "BananasApplesHotDogWatermelon"
+seedAsString = "Testing"
 WORLD_SEED = seed_from_string(seedAsString)
 random.seed(WORLD_SEED)
 
 print(f"Seed: {seedAsString} : {WORLD_SEED}")
 print(random.randint(0, 100))  # Will always be the same for "bananas"
 
-world_map = let_there_be_light(20,WORLD_SEED % 100000) #currently making smaller for pnoise to handle ... 100,000 unique worlds 
-
-display_world_altitude(world_map)
+world_map = let_there_be_light(30,WORLD_SEED % 65535) #currently making smaller for pnoise to handle ... 100,000 unique worlds 
+write_world_to_file(world_map,"mapSymbol","symbol")
+write_world_to_file(world_map,"mapValue","value")
+# display_world_altitude(world_map)
