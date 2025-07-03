@@ -48,7 +48,9 @@ def let_there_be_light(size, WORLD_SEED):
         
     
     return world_map
-def write_world_to_file(world_map,file_name,print_type):
+def write_world_to_file(seed_as_string,world_map,file_name,print_type):
+    
+    
     #print_type = "value" or "symbol"
 
     min_val = min(min(row) for row in world_map)
@@ -67,6 +69,10 @@ def write_world_to_file(world_map,file_name,print_type):
     "mountain": "^"
     }
     file = open(file_name + ".txt","w")
+    
+    WORLD_SEED = seed_from_string(seed_as_string)
+
+    file.write(f"Seed: {seedAsString} ({WORLD_SEED})\n")
     file.write (f"MIN: {min_val} MAX: {max_val}\nWATER: {water_threshold} GRASS: {grass_threshold} FOREST: {forest_threshold} MTN: {mountain_threshold}\n")
     size = len(world_map[0])
     for row in range(size):
@@ -147,10 +153,10 @@ seedAsString = "Testing"
 WORLD_SEED = seed_from_string(seedAsString)
 random.seed(WORLD_SEED)
 
-print(f"Seed: {seedAsString} : {WORLD_SEED}")
+print(f"Seed: {seedAsString} ({WORLD_SEED})")
 print(random.randint(0, 100))  # Will always be the same for "bananas"
 
 world_map = let_there_be_light(30,WORLD_SEED % 65535) #currently making smaller for pnoise to handle ... 100,000 unique worlds 
-write_world_to_file(world_map,"mapSymbol","symbol")
-write_world_to_file(world_map,"mapValue","value")
+write_world_to_file(seedAsString,world_map,"mapSymbol","symbol")
+write_world_to_file(seedAsString,world_map,"mapValue","value")
 # display_world_altitude(world_map)
