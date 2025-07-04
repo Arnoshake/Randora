@@ -3,6 +3,9 @@ import hashlib #cryptographic hashes (consistency)
 import noise #for more realistic generation
 import math
 from noise import pnoise2
+#Array Visualization
+import matplotlib.pyplot as plt
+import numpy as np
 print(noise.pnoise2(0.5, 0.5))
 def seed_from_string(s):
     # Convert the string into a 32-bit integer using SHA-256
@@ -149,14 +152,22 @@ def fill_world_water():
 
 
 # Testing World Seed Generation
-seedAsString = "Testing"
+
+seedAsString = input("Enter a World Seed: ")
 WORLD_SEED = seed_from_string(seedAsString)
 random.seed(WORLD_SEED)
 
 print(f"Seed: {seedAsString} ({WORLD_SEED})")
 print(random.randint(0, 100))  # Will always be the same for "bananas"
 
-world_map = let_there_be_light(30,WORLD_SEED % 65535) #currently making smaller for pnoise to handle ... 100,000 unique worlds 
+world_map = let_there_be_light(30,WORLD_SEED % 256) #currently making smaller for pnoise to handle ... 100,000 unique worlds 
 write_world_to_file(seedAsString,world_map,"mapSymbol","symbol")
 write_world_to_file(seedAsString,world_map,"mapValue","value")
+
+
+# COLOR PIXELS MAP
+data =world_map
+plt.imshow(data, cmap="terrain", interpolation='nearest')
+plt.colorbar()
+plt.show()
 # display_world_altitude(world_map)
