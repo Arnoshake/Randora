@@ -6,6 +6,11 @@ from noise import pnoise2
 #Array Visualization
 import matplotlib.pyplot as plt
 import numpy as np
+
+#LIST OF WORDS FOR RANDOMIZED SEEDS
+from nltk.corpus import words as nltk_words
+WORLD_LIST = nltk_words
+
 print(noise.pnoise2(0.5, 0.5))
 def seed_from_string(s):
     # Convert the string into a 32-bit integer using SHA-256
@@ -150,10 +155,32 @@ def create_mtn_range(elevation_map,point1,point2,peak_height, range_width):
 
                 if (row_location >= 0 and row_location < size) and (col_location > 0 and col_location < size):
                     distance = math.hypot(col_location - interpolated_col_value, row_location - interpolated_row_value)
-                    fall_off = max(0,1-(distance / range_width))
-                    elevation_map[row_location][col_location] = elevation_map[row_location][col_location] + (peak_height * fall_off)
-    return 
+                    # fall_off = max(0,1-(distance / range_width)) #LINEAR
+                    fall_off = max(0, 1 - (distance / range_width))
+                    elevation_map[row_location][col_location] = max(elevation_map[row_location][col_location], peak_height * fall_off)
 
+    return 
+def create_island(elevation_map, center_point, peak_height, range_width):
+    size = len(elevation_map[0])
+    cx, cy = center_point
+
+    for dy in range(-range_width, range_width + 1):
+        for dx in range(-range_width, range_width + 1):
+            x = cx + dx
+            y = cy + dy
+
+            if 0 <= x < size and 0 <= y < size:
+                distance = math.hypot(dx, dy)
+                falloff = max(0, 1 - (distance / range_width)) ** 0.5  
+                elevation_map[y][x] = max(elevation_map[y][x], peak_height * falloff)
+
+def create_seed():
+    seed = ""
+    trueRandom = random.SystemRandom()
+    random_number = trueRandom.randint(1,10)
+    for _ in range(random_number):
+        seed += trueRandom.choice(nltk_words.words()).capitalize()
+    return seed
 
 
 
@@ -163,17 +190,39 @@ def create_mtn_range(elevation_map,point1,point2,peak_height, range_width):
 # Testing World Seed Generation
 
 # seedAsString = input("Enter a World Seed: ")
-seedAsString = "mountains"
+
+seedAsString = create_seed()
 WORLD_SEED = seed_from_string(seedAsString)
 random.seed(WORLD_SEED)
 
 print(f"Seed: {seedAsString} ({WORLD_SEED})")
 print(random.randint(0, 100))  # Will always be the same for "bananas"
 
-world_map = let_there_be_light(50,WORLD_SEED % 256) #currently making smaller for pnoise to handle ... 100,000 unique worlds 
-point1 = (10,10)
-point2 = (15,40)
-# create_mtn_range(world_map,point1,point2,1.0,10)
+WORLD_SIZE = 50
+world_map = let_there_be_light(WORLD_SIZE,WORLD_SEED % 256) #currently making smaller for pnoise to handle ... 100,000 unique worlds 
+
+
+
+random_amount_of_iterations = random.randint(0,10)
+
+
+for creations in range(random_amount_of_iterations):
+    random_x =random.randint(0,WORLD_SIZE)
+    random_y =random.randint(0,WORLD_SIZE)
+    random_point1 = (random_x,random_y)
+    create_island(world_map,random_point1,.6,40)
+
+for creations in range(3):
+    random_x =random.randint(0,WORLD_SIZE)
+    random_y =random.randint(0,WORLD_SIZE)
+    random_point1 = (random_x,random_y)
+    random_x =random.randint(0,WORLD_SIZE)
+    random_y =random.randint(0,WORLD_SIZE)
+    random_point2 = (random_x,random_y)
+    create_mtn_range(world_map,random_point1,random_point2,.8,15)
+
+
+
 
 write_world_to_file(seedAsString,world_map,"mapSymbol","symbol")
 write_world_to_file(seedAsString,world_map,"mapValue","value")
