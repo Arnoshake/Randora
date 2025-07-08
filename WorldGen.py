@@ -17,7 +17,7 @@ def seed_from_string(s):
     #   print(random.randint(0, 100)) WILL ALWAYS RETURN THE SAME NUMBER PER STRING
 
 
-def let_there_be_light(size, WORLD_SEED):
+def let_there_be_light(size, WORLD_SEED): #create pnoise grid
     scale = 5.0 / size
     world_map = [ [ 0 for _ in range(size)] for _ in range(size)]
     
@@ -46,7 +46,7 @@ def let_there_be_light(size, WORLD_SEED):
     
     min_val = min(min(row) for row in world_map)
     max_val = max(max(row) for row in world_map)
-    print (f"MIN: {min_val} MAX: {max_val}")
+    # print (f"MIN: {min_val} MAX: {max_val}")
 
         
     
@@ -120,54 +120,65 @@ def display_world_altitude(world_map):
     for row in range(size):
         for col in range(size):
             print(f"{world_map[row][col]:.9f} ", end="")
-            # if (world_map[row][col] < 0.3):
-            #     print (terrain_symbols["water"],end="")
-            #     continue
-            # elif (world_map[row][col] < 0.4):
-            #     print (terrain_symbols["grass"],end="")
-            #     continue
-            # elif (world_map[row][col] < 0.6):
-            #     print (terrain_symbols["forest"],end="")
-            #     continue
-            # elif (world_map[row][col] < 1):
-            #     print (terrain_symbols["mountain"],end="")
-            #     continue
+            
         print("\n")
     return
+def display_world_GUI(world_map):
 
-def generate_world_altitude():
-    # Select a random amount (1-10) of starting points
-    # At each point, use wavefront Alg to apply a gradient. At each tile, add some noise (removes lessen artificial look)
-    #       Draw ridges or fault lines between random points (Bresenham’s line algorithm or linear interpolation) --> will also apply to rivers
-    #       Bias ripple direction (e.g., ripple more in one axis)
-
-
-
+    plt.imshow(world_map, cmap="terrain", interpolation='nearest')
+    plt.colorbar()
+    plt.show()
     return
-    
-def fill_world_water():
-    # Based on altitude, fill water (creates oceans and lakes)
-    return
+
+def create_mtn_range(elevation_map,point1,point2,peak_height, range_width):
+    size = len(elevation_map[0])
+
+    colPoint1, rowPoint1 = point1 
+    colPoint2, rowPoint2 = point2 
+
+    num_steps_in_line = max(abs(colPoint2 - colPoint1), abs(rowPoint2 - rowPoint1))
+
+    for step in range(num_steps_in_line):
+        t = step / num_steps_in_line #interpolation factor
+        interpolated_col_value = colPoint1 * (1 - t) + colPoint2 * t
+        interpolated_row_value = rowPoint1 * (1 - t) + rowPoint2 * t
+
+        for col_offset in range(-range_width,range_width +1 ):
+            for row_offset in range(-range_width,range_width +1 ):
+                row_location = int(interpolated_row_value + row_offset)
+                col_location = int(interpolated_col_value + col_offset)
+
+                if (row_location >= 0 and row_location < size) and (col_location > 0 and col_location < size):
+                    distance = math.hypot(col_location - interpolated_col_value, row_location - interpolated_row_value)
+                    fall_off = max(0,1-(distance / range_width))
+                    elevation_map[row_location][col_location] = elevation_map[row_location][col_location] + (peak_height * fall_off)
+    return 
+
+
+
+
 
 
 
 # Testing World Seed Generation
 
-seedAsString = input("Enter a World Seed: ")
+# seedAsString = input("Enter a World Seed: ")
+seedAsString = "mountains"
 WORLD_SEED = seed_from_string(seedAsString)
 random.seed(WORLD_SEED)
 
 print(f"Seed: {seedAsString} ({WORLD_SEED})")
 print(random.randint(0, 100))  # Will always be the same for "bananas"
 
-world_map = let_there_be_light(30,WORLD_SEED % 256) #currently making smaller for pnoise to handle ... 100,000 unique worlds 
+world_map = let_there_be_light(50,WORLD_SEED % 256) #currently making smaller for pnoise to handle ... 100,000 unique worlds 
+point1 = (10,10)
+point2 = (15,40)
+# create_mtn_range(world_map,point1,point2,1.0,10)
+
 write_world_to_file(seedAsString,world_map,"mapSymbol","symbol")
 write_world_to_file(seedAsString,world_map,"mapValue","value")
 
 
 # COLOR PIXELS MAP
-data =world_map
-plt.imshow(data, cmap="terrain", interpolation='nearest')
-plt.colorbar()
-plt.show()
-# display_world_altitude(world_map)
+display_world_GUI(world_map)
+
