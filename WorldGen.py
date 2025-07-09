@@ -104,7 +104,8 @@ def display_world_altitude(world_map):
 def display_world_GUI(world_map,SEED_AS_STRING):
     vmin = np.min(world_map)
     vmax = np.max(world_map)
-    bounds = [-1.0, 0.0, 0.4, 0.7, 1.0]  # strictly increasing!
+    print(vmin, " ",vmax)
+    bounds = [vmin, (vmin + (vmin*0.4)), (vmin + (vmin*0.75)), (vmin + (vmin*0.85)), vmax]  # strictly increasing!
 
     # Define matching colors
     colors = [
@@ -150,7 +151,7 @@ def let_there_be_light(size, WORLD_SEED): #create land noise
                             persistence=0.5,
                             lacunarity=2.0,
                             base=WORLD_SEED)
-            # val = ((val + 1)/2) #normalize btw [0,1]
+            val = ((val + 1)/2) #normalize btw [0,1]
 
             world_map[row][col] = val
 
