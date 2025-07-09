@@ -6,6 +6,7 @@ from noise import pnoise2
 #Array Visualization
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.colors import ListedColormap, BoundaryNorm
 
 #LIST OF WORDS FOR RANDOMIZED SEEDS
 from nltk.corpus import words as nltk_words
@@ -100,12 +101,37 @@ def display_world_altitude(world_map):
             
         print("\n")
     return
-def display_world_GUI(world_map):
+def display_world_GUI(world_map,SEED_AS_STRING):
+    vmin = np.min(world_map)
+    vmax = np.max(world_map)
+    bounds = [-1.0, 0.0, 0.4, 0.7, 1.0]  # strictly increasing!
 
-    plt.imshow(world_map, cmap="gist_earth", interpolation='nearest',alpha =1.0,vmin = 0,vmax = 1)
-    plt.colorbar()
+    # Define matching colors
+    colors = [
+        "#0000cc",   # Blue for < 0
+        "#228B22",   # Green
+        "#8B4513",   # Brown
+        "#ffffff"    # White
+    ]
+
+    # Create colormap and norm
+    cmap = ListedColormap(colors)
+    norm = BoundaryNorm(bounds, len(colors))
+
+    # Clamp world_map to valid range for bounds (just in case)
+    clamped_map = np.clip(world_map, -1.0, 1.0)
+
+    # Plot
+    img = plt.imshow(clamped_map, cmap=cmap, norm=norm, interpolation='nearest')
+    cbar = plt.colorbar(img, ticks=bounds)
+    cbar.set_label("Elevation")
+    plt.title(SEED_AS_STRING)
     plt.show()
+    # plt.imshow(world_map, cmap="gist_earth", interpolation='nearest',alpha =1.0,vmin = -1,vmax = 1)
+    # plt.colorbar()
+    # plt.show()
     return
+
 
 def let_there_be_light(size, WORLD_SEED): #create land noise
     scale = .01
@@ -113,9 +139,10 @@ def let_there_be_light(size, WORLD_SEED): #create land noise
     world_map = [ [ 0 for _ in range(size)] for _ in range(size)]
     rng = random.Random(WORLD_SEED)
     row_offset = rng.uniform(0, 1000)
+    col_offset = rng.uniform(0, 1000)
     for row in range(size):
         for col in range(size):
-            col_offset = rng.uniform(0, 1000)
+            
             x = (col + col_offset) * scale
             y = (row + row_offset) * scale
             val = pnoise2 ( x,y,
@@ -123,7 +150,7 @@ def let_there_be_light(size, WORLD_SEED): #create land noise
                             persistence=0.5,
                             lacunarity=2.0,
                             base=WORLD_SEED)
-            val = ((val + 1)/2) #normalize btw [0,1]
+            # val = ((val + 1)/2) #normalize btw [0,1]
 
             world_map[row][col] = val
 
@@ -210,16 +237,6 @@ def create_land(world_map,WORLD_HEIGHT):
         random_point2 = (random_x,random_y)
         create_mtn_range(world_map,random_point1,random_point2,random_height_value,5)
 
-def water_function(world_map,WORLD_HEIGHT,water_cutoff):
-    width = len(world_map[0])
-    height = len(world_map)
-    for y in range(len(world_map[0])):
-        for x in range(len(world_map[0])):
-            distance = max(abs((x/width)*2-1),abs(y/height)*2-1)
-            fall_off = distance
-            world_map[x][y] *= (1-fall_off)**.5
-            # if (world_map[x][y] <= water_cutoff):
-            #     world_map[x][y] = 0.1
 
 
 
@@ -237,12 +254,12 @@ random.seed(WORLD_SEED)
 print(f"Seed: {seedAsString} ({WORLD_SEED})")
 print(random.randint(0, 100))  # Will always be the same for "bananas"
 
-WORLD_SIZE = 50
+WORLD_SIZE = 100
 WORLD_HEIGHT = 1.0
 world_map = let_there_be_light(WORLD_SIZE,WORLD_SEED % 256) #currently making smaller for pnoise to handle ... 100,000 unique worlds 
-create_land(world_map,WORLD_HEIGHT)
-water_function(world_map,WORLD_HEIGHT,0.55)
-display_world_GUI(world_map)
+# create_land(world_map,WORLD_HEIGHT)
+# water_function(world_map,WORLD_HEIGHT,0.55)
+display_world_GUI(world_map,seedAsString)
 # create_land(world_map,WORLD_HEIGHT)
 
 
@@ -259,5 +276,5 @@ write_world_to_file(seedAsString,world_map,"mapValue","value")
 
 
 # COLOR PIXELS MAP
-display_world_GUI(world_map)
+# display_world_GUI(world_map)
 
