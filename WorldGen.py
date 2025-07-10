@@ -142,8 +142,11 @@ def display_world_GUI(world_map,SEED_AS_STRING):
 
 
 def let_there_be_light(size, WORLD_SEED): #create land noise
-    scale = .01
-    # scale = 5.0 / size
+    zoom_level = 1.30  # you can tweak this higher/lower
+    #lower at higher
+
+    scale = zoom_level / size
+    
     world_map = [ [ 0 for _ in range(size)] for _ in range(size)]
     rng = random.Random(WORLD_SEED)
     row_offset = rng.uniform(0, 1000)
@@ -172,78 +175,6 @@ def let_there_be_light(size, WORLD_SEED): #create land noise
         
     
     return world_map
-def create_mtn_range(elevation_map,point1,point2,peak_height, range_width):
-    size = len(elevation_map[0])
-
-    colPoint1, rowPoint1 = point1 
-    colPoint2, rowPoint2 = point2 
-
-    num_steps_in_line = max(abs(colPoint2 - colPoint1), abs(rowPoint2 - rowPoint1))
-
-    for step in range(num_steps_in_line):
-        t = step / num_steps_in_line #interpolation factor
-        interpolated_col_value = colPoint1 * (1 - t) + colPoint2 * t
-        interpolated_row_value = rowPoint1 * (1 - t) + rowPoint2 * t
-
-        jitter_strength = 5.0
-        jitter_row = noise.pnoise1(step * 0.1) * jitter_strength
-        jitter_col = noise.pnoise1((step+1000) * 0.1) * jitter_strength
-
-        interpolated_col_value += jitter_col
-        interpolated_row_value += jitter_row
-        for col_offset in range(-range_width,range_width +1 ):
-            for row_offset in range(-range_width,range_width +1 ):
-                row_location = int(interpolated_row_value + row_offset)
-                col_location = int(interpolated_col_value + col_offset)
-
-                if 0 <= row_location < size and 0 <= col_location < size:
-                    distance = math.hypot(col_location - interpolated_col_value, row_location - interpolated_row_value)
-                    # fall_off = max(0,1-(distance / range_width)) #LINEAR
-                    fall_off = max(0, 1 - (distance / range_width))
-                    # Bias the elevation falloff in a preferred direction (e.g., more to the north)
-                    dy = row_location - interpolated_row_value
-                    directional_bias = 1.0 - 0.3 * (dy / range_width)  # tweak 0.3 as needed
-
-                    # Combine falloffs
-                    combined_falloff = fall_off * directional_bias
-                    # if elevation_map[row_location][col_location] < .5:
-                    elevation_map[row_location][col_location] = max(elevation_map[row_location][col_location], peak_height * combined_falloff)
-
-    return 
-def create_island(elevation_map, center_point, peak_height, range_width):
-    size = len(elevation_map[0])
-    cx, cy = center_point
-
-    for dy in range(-range_width, range_width + 1):
-        for dx in range(-range_width, range_width + 1):
-            x = cx + dx
-            y = cy + dy
-
-            if 0 <= x < size and 0 <= y < size:
-                distance = math.hypot(dx, dy)
-                falloff = max(0, 1 - (distance / range_width)) ** 0.5  
-                elevation_map[y][x] = max(elevation_map[y][x], peak_height * falloff)
-def create_land(world_map,WORLD_HEIGHT):
-    random_amount_of_iterations = random.randint(5,20)
-    center_point = (int(len(world_map[0])/2),int(len(world_map[0])/2))
-    create_island(world_map,center_point,WORLD_HEIGHT/2,int(len(world_map[0])/2))
-    for creations in range(random_amount_of_iterations):
-        random_height_value = random.randint(30,60)/100.0
-        random_x =random.randint(0,WORLD_SIZE)
-        random_y =random.randint(0,WORLD_SIZE)
-        random_point1 = (random_x,random_y)
-        create_island(world_map,random_point1,random_height_value,25)
-
-    random_amount_of_iterations = random.randint(1,4)
-    for creations in range(random_amount_of_iterations):
-        random_height_value = random.randint(90,100)/100.0
-        random_x =random.randint(0,WORLD_SIZE)
-        random_y =random.randint(0,WORLD_SIZE)
-        random_point1 = (random_x,random_y)
-        random_x =random.randint(0,WORLD_SIZE)
-        random_y =random.randint(0,WORLD_SIZE)
-        random_point2 = (random_x,random_y)
-        create_mtn_range(world_map,random_point1,random_point2,random_height_value,5)
 
 
 
@@ -262,7 +193,7 @@ random.seed(WORLD_SEED)
 print(f"Seed: {seedAsString} ({WORLD_SEED})")
 print(random.randint(0, 100))  # Will always be the same for "bananas"
 
-WORLD_SIZE = 100
+WORLD_SIZE = 512
 WORLD_HEIGHT = 1.0
 world_map = let_there_be_light(WORLD_SIZE,WORLD_SEED % 256) #currently making smaller for pnoise to handle ... 100,000 unique worlds 
 # create_land(world_map,WORLD_HEIGHT)
