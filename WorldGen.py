@@ -141,7 +141,7 @@ def display_world_GUI(world_map,SEED_AS_STRING):
     return
 
 
-def let_there_be_light(size, WORLD_SEED): #create land noise
+def create_altitude_map(size, WORLD_SEED): #create land noise
     zoom_level = 1.30  # you can tweak this higher/lower
     #lower at higher
 
@@ -149,13 +149,13 @@ def let_there_be_light(size, WORLD_SEED): #create land noise
     
     world_map = [ [ 0 for _ in range(size)] for _ in range(size)]
     rng = random.Random(WORLD_SEED)
-    row_offset = rng.uniform(0, 1000)
-    col_offset = rng.uniform(0, 1000)
+    row_offset = rng.uniform(0, 50)
+    col_offset = rng.uniform(0, 50)
     for row in range(size):
         for col in range(size):
             
-            x = (col + col_offset) * scale
-            y = (row + row_offset) * scale
+            x = (col* scale + col_offset) 
+            y = (row* scale + row_offset) 
             val = pnoise2 ( x,y,
                             octaves=4,
                             persistence=0.5,
@@ -165,8 +165,6 @@ def let_there_be_light(size, WORLD_SEED): #create land noise
 
             world_map[row][col] = val
 
-            col_offset += scale
-        row_offset +=scale
     
     min_val = min(min(row) for row in world_map)
     max_val = max(max(row) for row in world_map)
@@ -175,6 +173,41 @@ def let_there_be_light(size, WORLD_SEED): #create land noise
         
     
     return world_map
+def create_temp_map(size, world_map,WORLD_SEED): 
+    zoom_level = 1.30  # you can tweak this higher/lower
+    #lower at higher
+
+    scale = zoom_level / size
+    temp_map = [ [ 0 for _ in range(size)] for _ in range(size)]
+    rng = random.Random(WORLD_SEED)
+    row_offset = rng.uniform(0, 50)
+    col_offset = rng.uniform(0, 50)
+    
+    height = len(world_map)
+    for row in range(size):
+        for col in range(size):
+           
+            
+            val = 1 - abs((row/height)*2-1) # 0 - 1 radiating from middle to poles
+            x = (col* scale + col_offset) 
+            y = (row* scale + row_offset) 
+
+            temp_noise = pnoise2 ( x,y,
+                            octaves=4,
+                            persistence=0.5,
+                            lacunarity=2.0,
+                            base=WORLD_SEED)
+            
+            temp_map[row][col] = val + temp_noise * 0.2 #add noise to make more natural
+            temp_map[row][col] = temp_map[row][col] - (world_map[row][col])*0.6 #colder at higher altitude
+    
+    min_val = min(min(row) for row in world_map)
+    max_val = max(max(row) for row in world_map)
+    # print (f"MIN: {min_val} MAX: {max_val}")
+
+        
+    
+    return temp_map
 
 
 
@@ -193,9 +226,10 @@ random.seed(WORLD_SEED)
 print(f"Seed: {seedAsString} ({WORLD_SEED})")
 print(random.randint(0, 100))  # Will always be the same for "bananas"
 
-WORLD_SIZE = 512
+WORLD_SIZE = 100
 WORLD_HEIGHT = 1.0
-world_map = let_there_be_light(WORLD_SIZE,WORLD_SEED % 256) #currently making smaller for pnoise to handle ... 100,000 unique worlds 
+world_map = create_altitude_map(WORLD_SIZE,WORLD_SEED % 256) #currently making smaller for pnoise to handle ... 100,000 unique worlds 
+temp_map = create_temp_map(WORLD_SIZE,world_map,WORLD_SEED)
 # create_land(world_map,WORLD_HEIGHT)
 # water_function(world_map,WORLD_HEIGHT,0.55)
 display_world_GUI(world_map,seedAsString)
@@ -211,7 +245,7 @@ display_world_GUI(world_map,seedAsString)
 
 
 write_world_to_file(seedAsString,world_map,"mapSymbol","symbol")
-write_world_to_file(seedAsString,world_map,"mapValue","value")
+write_world_to_file(seedAsString,temp_map,"mapValue","value")
 
 
 # COLOR PIXELS MAP
