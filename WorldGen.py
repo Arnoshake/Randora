@@ -173,7 +173,7 @@ def create_altitude_map(size, WORLD_SEED): #create land noise
         
     
     return world_map
-def create_temp_map(size, world_map,WORLD_SEED): 
+def create_temp_map(size, altitude_map,WORLD_SEED): 
     zoom_level = 1.30  # you can tweak this higher/lower
     #lower at higher
 
@@ -199,15 +199,74 @@ def create_temp_map(size, world_map,WORLD_SEED):
                             base=WORLD_SEED)
             
             temp_map[row][col] = val + temp_noise * 0.2 #add noise to make more natural
-            temp_map[row][col] = temp_map[row][col] - (world_map[row][col])*0.6 #colder at higher altitude
+            temp_map[row][col] = temp_map[row][col] - (altitude_map[row][col])*0.6 #colder at higher altitude
     
-    min_val = min(min(row) for row in world_map)
-    max_val = max(max(row) for row in world_map)
-    # print (f"MIN: {min_val} MAX: {max_val}")
 
         
     
     return temp_map
+def assign_biomes(size,altitude_map,temp_map,WORLD_SEED):
+    biome_map = [ [ 0 for _ in range(size)] for _ in range(size)]
+    altitude_min = np.min(altitude_map)
+    altitude_max = np.max(altitude_map)
+    altitude_range = altitude_max-altitude_min
+
+    #WATER
+    water_threshold = (altitude_min + (altitude_range*0.4))
+    sand_threshold = (altitude_min + (altitude_range*0.44))
+    grass_threshold = (altitude_min + (altitude_range*0.80))
+    lower_Mtn_threshold = (altitude_min + (altitude_range*0.95))
+    #PEAKS
+    for row in range(size):
+        for col in range(size):
+            temperature = temp_map[row][col]
+            altitude = altitude_map[row][col]
+
+            if altitude < water_threshold:
+                if temperature < 0.2:
+                    biome = "Frozen Ocean"
+                elif temperature < 0.5:
+                    biome = "Ocean"
+                else:
+                    biome = "Tropical Ocean"
+
+            elif altitude < sand_threshold:
+                if temperature < 0.3:
+                    biome = "Cold Beach"
+                else:
+                    biome = "Beach"
+
+            elif altitude < grass_threshold:
+                if temperature > 0.75:
+                    biome = "Savanna"
+                elif temperature > 0.5:
+                    biome = "Grassland"
+                elif temperature > 0.3:
+                    biome = "Cold Steppe"
+                else:
+                    biome = "Tundra"
+
+            elif altitude < lower_Mtn_threshold:
+                if temperature > 0.6:
+                    biome = "Deciduous Forest"
+                elif temperature > 0.4:
+                    biome = "Coniferous Forest"
+                else:
+                    biome = "Taiga"
+
+            else:  
+                if temperature > 0.8: biome = "Volcanic Peaks"
+                elif temperature > 0.5:
+                    biome = "Rocky Peaks"
+                elif temperature > 0.2:
+                    biome = "Snowy Peaks"
+                else:
+                    biome = "Glacier"
+            biome_map[row][col] = biome
+    return biome_map
+
+
+
 
 
 
