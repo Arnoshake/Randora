@@ -109,9 +109,10 @@ def display_world_GUI(world_map,SEED_AS_STRING):
     water_threshold = (vmin + (vrange*0.4))
     sand_threshold = (vmin + (vrange*0.44))
     grass_threshold = (vmin + (vrange*0.80))
+    forest_theshold = (vmin + (vrange*0.90))
     lower_Mtn_threshold = (vmin + (vrange*0.95))
 
-    bounds = [vmin, water_threshold, sand_threshold, grass_threshold, lower_Mtn_threshold, vmax]  # strictly increasing!
+    bounds = [vmin, water_threshold, sand_threshold, grass_threshold,lower_Mtn_threshold, vmax]  # strictly increasing!
 
     # Define matching colors
     colors = [
@@ -183,28 +184,35 @@ def create_temp_map(size, altitude_map,WORLD_SEED):
     row_offset = rng.uniform(0, 50)
     col_offset = rng.uniform(0, 50)
     
+    cx, cy = size / 2, size / 2  # center of map 
     height = len(altitude_map)
     for row in range(size):
         for col in range(size):
             altitude = altitude_map[row][col]
+            dx = col - cx
+            dy = row - cy
+            distance = math.sqrt(dx**2 + dy**2)
+            max_dist = math.sqrt(2) * (size / 2)
+            base_temp = 1 - (distance / max_dist)  # warm in center, cold on edge
             
-            val = (1 - abs((row / height) * 2 - 1)) ** 2
-
-            # val = 1 - abs((row/height)*2-1) # 0 - 1 radiating from middle to poles
             x = (col* scale + col_offset) 
             y = (row* scale + row_offset) 
-
             temp_noise = pnoise2 ( x,y,
                             octaves=4,
                             persistence=0.5,
                             lacunarity=2.0,
                             base=WORLD_SEED%256)
             
-            temperature= val + temp_noise * 0.5 #add noise to make more natural
+            temperature= base_temp + temp_noise * 0.5 #add noise to make more natural
             
-            temperature -= (altitude ** 1.5) * 0.3
-            temperature+=0.1 #linear, across the board temp boost
+            temperature -= (altitude ** 1.25) * 0.2 #Decreases temp as altitude increases
+            
+            temperature+=0.25#linear, across the board temp boost
+            cluster_noise = pnoise2(col * 0.01, row * 0.01, octaves=1, base=WORLD_SEED % 256)
+            temperature += cluster_noise * 0.1  # mild warping
             temperature = max(0, min(1, temperature))
+
+            
             temp_map[row][col] = temperature
 
     
@@ -229,75 +237,33 @@ def assign_biomes(size,altitude_map,temp_map,WORLD_SEED):
             temperature = temp_map[row][col]
             altitude = altitude_map[row][col]
 
-            if altitude < water_threshold:
-                if temperature < 0.2:
-                    biome = "Frozen Ocean"
-                elif temperature < 0.5:
-                    biome = "Ocean"
-                else:
-                    biome = "Tropical Ocean"
-
-            elif altitude < sand_threshold:
-                if temperature < 0.3:
-                    biome = "Cold Beach"
-                else:
-                    biome = "Beach"
-
+            if altitude < water_threshold: biome = "Ocean"
+            elif altitude < sand_threshold: biome = "Beach"
+            #MAIN LAND AREA
+        
             elif altitude < grass_threshold:
-                if temperature > 0.75:
-                    biome = "Savanna"
-                elif temperature > 0.5:
-                    biome = "Grassland"
-                elif temperature > 0.3:
-                    biome = "Cold Steppe"
-                else:
-                    biome = "Tundra"
-
+                if temperature > 0.8: biome = "Grassland"
+                elif temperature > 0.75: biome = "Forest"
+                elif temperature > 0.65: biome = "Grassland"
+                elif temperature > 0.35: biome = "Forest"
+                else:   biome = "Tundra"
+            #MOUNTAINS
             elif altitude < lower_Mtn_threshold:
-                if temperature > 0.6:
-                    biome = "Deciduous Forest"
-                elif temperature > 0.4:
-                    biome = "Coniferous Forest"
-                else:
-                    biome = "Taiga"
-
-            else:  
-                if temperature > 0.8: biome = "Volcanic Peaks"
-                elif temperature > 0.5:
-                    biome = "Rocky Peaks"
-                elif temperature > 0.2:
-                    biome = "Snowy Peaks"
-                else:
-                    biome = "Glacier"
+                biome = "Mountain"
+            else:
+                biome = "Snowy Peaks" if temperature > 0.2 else "Glacier"
             biome_map[row][col] = biome
     return biome_map
 def display_biomes_GUI(biome_map,SEED_AS_STRING):
     biome_colors = {
-    # Water
-    "Frozen Ocean":     "#a2d2ff",
-    "Ocean":            "#0077b6",
-    "Tropical Ocean":   "#00b4d8",
-
-    # Beaches
-    "Cold Beach":       "#e5e5dc",
-    "Beach":            "#f4a261",
-
-    # Plains / Drylands
-    "Savanna":          "#e9c46a",
-    "Grassland":        "#90be6d",
-    "Cold Steppe":      "#b7b78a",
-    "Tundra":           "#c0d6c1",
-
-    # Forests
-    "Deciduous Forest": "#2a9d8f",
-    "Coniferous Forest":"#264653",
-    "Taiga":            "#4a6d7c",
-
-    # Mountains
-    "Volcanic Peaks":   "#6a040f",
-    "Rocky Peaks":      "#8d99ae",
-    "Snowy Peaks":      "#edf2f4",
-    "Glacier":          "#bde0fe"
+    "Ocean": "#0077b6",
+    "Beach": "#f4a261",
+    "Grassland": "#90be6d",
+    "Tundra": "#c0d6c1",
+    "Forest": "#2a9d8f",
+    "Mountain": "#8d99ae",
+    "Glacier": "#bde0fe",
+    "Snowy Peaks": "#F4E9E9"
 }
 
     biome_list = list(biome_colors)   
