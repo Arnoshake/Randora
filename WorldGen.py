@@ -104,14 +104,21 @@ def display_world_altitude(world_map):
 def display_world_GUI(world_map,SEED_AS_STRING):
     vmin = np.min(world_map)
     vmax = np.max(world_map)
+    vrange = vmax - vmin
     print(vmin, " ",vmax)
-    bounds = [vmin, (vmin + (vmin*0.4)), (vmin + (vmin*0.75)), (vmin + (vmin*0.85)), vmax]  # strictly increasing!
+    water_threshold = (vmin + (vrange*0.4))
+    sand_threshold = (vmin + (vrange*0.44))
+    grass_threshold = (vmin + (vrange*0.80))
+    lower_Mtn_threshold = (vmin + (vrange*0.95))
+
+    bounds = [vmin, water_threshold, sand_threshold, grass_threshold, lower_Mtn_threshold, vmax]  # strictly increasing!
 
     # Define matching colors
     colors = [
         "#0000cc",   # Blue for < 0
+        "#C2B280",   # tan
         "#228B22",   # Green
-        "#8B4513",   # Brown
+        "#707070",   # Gray
         "#ffffff"    # White
     ]
 
