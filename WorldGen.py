@@ -160,7 +160,7 @@ def create_altitude_map(size, WORLD_SEED): #create land noise
                             octaves=4,
                             persistence=0.5,
                             lacunarity=2.0,
-                            base=WORLD_SEED)
+                            base=WORLD_SEED%256)
             val = ((val + 1)/2) #normalize btw [0,1]
 
             world_map[row][col] = val
@@ -183,12 +183,14 @@ def create_temp_map(size, altitude_map,WORLD_SEED):
     row_offset = rng.uniform(0, 50)
     col_offset = rng.uniform(0, 50)
     
-    height = len(world_map)
+    height = len(altitude_map)
     for row in range(size):
         for col in range(size):
-           
+            altitude = altitude_map[row][col]
             
-            val = 1 - abs((row/height)*2-1) # 0 - 1 radiating from middle to poles
+            val = (1 - abs((row / height) * 2 - 1)) ** 2
+
+            # val = 1 - abs((row/height)*2-1) # 0 - 1 radiating from middle to poles
             x = (col* scale + col_offset) 
             y = (row* scale + row_offset) 
 
@@ -196,10 +198,15 @@ def create_temp_map(size, altitude_map,WORLD_SEED):
                             octaves=4,
                             persistence=0.5,
                             lacunarity=2.0,
-                            base=WORLD_SEED)
+                            base=WORLD_SEED%256)
             
-            temp_map[row][col] = val + temp_noise * 0.2 #add noise to make more natural
-            temp_map[row][col] = temp_map[row][col] - (altitude_map[row][col])*0.6 #colder at higher altitude
+            temperature= val + temp_noise * 0.5 #add noise to make more natural
+            
+            temperature -= (altitude ** 1.5) * 0.3
+            temperature+=0.1 #linear, across the board temp boost
+            temperature = max(0, min(1, temperature))
+            temp_map[row][col] = temperature
+
     
 
         
@@ -264,6 +271,54 @@ def assign_biomes(size,altitude_map,temp_map,WORLD_SEED):
                     biome = "Glacier"
             biome_map[row][col] = biome
     return biome_map
+def display_biomes_GUI(biome_map,SEED_AS_STRING):
+    biome_colors = {
+    # Water
+    "Frozen Ocean":     "#a2d2ff",
+    "Ocean":            "#0077b6",
+    "Tropical Ocean":   "#00b4d8",
+
+    # Beaches
+    "Cold Beach":       "#e5e5dc",
+    "Beach":            "#f4a261",
+
+    # Plains / Drylands
+    "Savanna":          "#e9c46a",
+    "Grassland":        "#90be6d",
+    "Cold Steppe":      "#b7b78a",
+    "Tundra":           "#c0d6c1",
+
+    # Forests
+    "Deciduous Forest": "#2a9d8f",
+    "Coniferous Forest":"#264653",
+    "Taiga":            "#4a6d7c",
+
+    # Mountains
+    "Volcanic Peaks":   "#6a040f",
+    "Rocky Peaks":      "#8d99ae",
+    "Snowy Peaks":      "#edf2f4",
+    "Glacier":          "#bde0fe"
+}
+
+    biome_list = list(biome_colors)   
+    color_list = list(biome_colors.values())
+
+    biome_to_integer = {biome: i for i, biome in enumerate(biome_list)}
+    int_map = np.array([[biome_to_integer[biome] for biome in row] for row in biome_map]) #using integer casted values, recreate biome map with integer ID instead of String
+    
+    #assigns colors to the boundary values
+    cmap = ListedColormap(color_list)
+    norm = BoundaryNorm(boundaries=np.arange(len(biome_list)+1)-0.5, ncolors=len(biome_list))
+
+    plt.figure(figsize=(10, 10))
+    img = plt.imshow(int_map, cmap=cmap, norm=norm, interpolation='nearest')
+    cbar = plt.colorbar(img, ticks=np.arange(len(biome_list)))
+    cbar.ax.set_yticklabels(biome_list)
+    cbar.set_label("Biome Type")
+    plt.title("Biome Map")
+    plt.axis("off")
+    plt.show()
+    return
 
 
 
@@ -285,13 +340,15 @@ random.seed(WORLD_SEED)
 print(f"Seed: {seedAsString} ({WORLD_SEED})")
 print(random.randint(0, 100))  # Will always be the same for "bananas"
 
-WORLD_SIZE = 100
+WORLD_SIZE = 512
 WORLD_HEIGHT = 1.0
-world_map = create_altitude_map(WORLD_SIZE,WORLD_SEED % 256) #currently making smaller for pnoise to handle ... 100,000 unique worlds 
-temp_map = create_temp_map(WORLD_SIZE,world_map,WORLD_SEED)
+alt_map = create_altitude_map(WORLD_SIZE,WORLD_SEED % 256) #currently making smaller for pnoise to handle ... 100,000 unique worlds 
+temp_map = create_temp_map(WORLD_SIZE,alt_map,WORLD_SEED)
+biome_map = assign_biomes(WORLD_SIZE,alt_map,temp_map,WORLD_SEED)
 # create_land(world_map,WORLD_HEIGHT)
 # water_function(world_map,WORLD_HEIGHT,0.55)
-display_world_GUI(world_map,seedAsString)
+display_world_GUI(alt_map,seedAsString)
+display_biomes_GUI(biome_map,seedAsString)
 # create_land(world_map,WORLD_HEIGHT)
 
 
@@ -303,7 +360,7 @@ display_world_GUI(world_map,seedAsString)
 
 
 
-write_world_to_file(seedAsString,world_map,"mapSymbol","symbol")
+write_world_to_file(seedAsString,alt_map,"mapSymbol","symbol")
 write_world_to_file(seedAsString,temp_map,"mapValue","value")
 
 
