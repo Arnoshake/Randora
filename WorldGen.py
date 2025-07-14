@@ -6,7 +6,10 @@ from noise import pnoise2
 #Array Visualization
 import matplotlib.pyplot as plt
 import numpy as np
+#VORONOI SEEDING
 from matplotlib.colors import ListedColormap, BoundaryNorm
+
+from scipy.spatial import Voronoi,voronoi_plot_2d
 
 #LIST OF WORDS FOR RANDOMIZED SEEDS
 from nltk.corpus import words as nltk_words
@@ -53,7 +56,7 @@ def write_world_to_file(seed_as_string,world_map,file_name,print_type):
     
     WORLD_SEED = seed_from_string(seed_as_string)
 
-    file.write(f"Seed: {seedAsString} ({WORLD_SEED})\n")
+    file.write(f"Seed: {seed_as_string} ({WORLD_SEED})\n")
     file.write (f"MIN: {min_val} MAX: {max_val}\nWATER: {water_threshold} GRASS: {grass_threshold} FOREST: {forest_threshold} MTN: {mountain_threshold}\n")
     size = len(world_map[0])
     for row in range(size):
@@ -102,6 +105,7 @@ def display_world_altitude(world_map):
         print("\n")
     return
 def display_world_GUI(world_map,SEED_AS_STRING):
+    size = len(world_map[0])
     vmin = np.min(world_map)
     vmax = np.max(world_map)
     vrange = vmax - vmin
@@ -130,24 +134,75 @@ def display_world_GUI(world_map,SEED_AS_STRING):
     # Clamp world_map to valid range for bounds (just in case)
     clamped_map = np.clip(world_map, -1.0, 1.0)
 
-    # Plot
-    img = plt.imshow(clamped_map, cmap=cmap, norm=norm, interpolation='nearest')
-    cbar = plt.colorbar(img, ticks=bounds)
+    # Plot - OLD
+    # img = plt.imshow(clamped_map, cmap=cmap, norm=norm, interpolation="nearest")
+    # cbar = plt.colorbar(img, ticks=bounds)
+    # cbar.set_label("Elevation")
+
+    
+    fig, ax = plt.subplots() #fig = orig map, ax = cropped, viewing portion
+    img = ax.imshow(clamped_map, cmap=cmap, norm=norm, interpolation="nearest")
+    cbar = plt.colorbar(img, ax=ax, ticks=bounds)
     cbar.set_label("Elevation")
-    plt.title(SEED_AS_STRING)
+    # Initial camera position and zoom
+    zoom_radius = 30
+    center_x, center_y = size // 2, size // 2
+
+    def update_view():
+        ax.set_xlim(center_x - zoom_radius, center_x + zoom_radius)
+        ax.set_ylim(center_y + zoom_radius, center_y - zoom_radius)  # y-axis inverted
+        fig.canvas.draw_idle()
+    def on_key(event):
+        nonlocal center_x, center_y, zoom_radius
+        step = 5
+        zoom_step = 5
+
+        if event.key == 'left':
+            center_x -= step
+        elif event.key == 'right':
+            center_x += step
+        elif event.key == 'up':
+            center_y -= step
+        elif event.key == 'down':
+            center_y += step
+        elif event.key == '+' or event.key == '=': #done for mac users
+            zoom_radius = max(5, zoom_radius - zoom_step)
+        elif event.key == '-':
+            zoom_radius = min(size // 2, zoom_radius + zoom_step)
+
+        # Clamp to world bounds
+        center_x = max(zoom_radius, min(center_x, size - zoom_radius))
+        center_y = max(zoom_radius, min(center_y, size - zoom_radius))
+
+        update_view()
+
+    fig.canvas.mpl_connect('key_press_event', on_key)
+    ax.set_title(f"World: {SEED_AS_STRING}  \nArrows to pan, +/- to zoom")
+    update_view()
+
+    try:
+        fig.canvas.manager.window.activateWindow()
+        fig.canvas.manager.window.raise_()
+    except:
+        pass
     plt.show()
+    # plt.title(SEED_AS_STRING)
+    # plt.show()
     # plt.imshow(world_map, cmap="gist_earth", interpolation='nearest',alpha =1.0,vmin = -1,vmax = 1)
     # plt.colorbar()
     # plt.show()
     return
 
 
+    
+
 def create_altitude_map(size, WORLD_SEED): #create land noise
     zoom_level = 1.30  # you can tweak this higher/lower
     #lower at higher
 
-    scale = zoom_level / size
-    
+    # scale = zoom_level / size
+    scale = 0.01
+    print(scale)
     world_map = [ [ 0 for _ in range(size)] for _ in range(size)]
     rng = random.Random(WORLD_SEED)
     row_offset = rng.uniform(0, 50)
@@ -220,6 +275,31 @@ def create_temp_map(size, altitude_map,WORLD_SEED):
         
     
     return temp_map
+def Voronoi_seeding():
+    size = 20
+
+    vor_points = np.random.rand(10,2) * size
+    
+    
+   
+    vor_points = np.array(vor_points,dtype=float) #converting to NumPy array (for [:,0] & [:,1])
+    plt.scatter(vor_points[:,0],vor_points[:,1])
+    if len(vor_points == 0): print("No seed points generated")
+    
+    if len(vor_points > 3):
+        vor_object = Voronoi(vor_points)
+        vor_vertices = vor_object.vertices
+        vor_regions = vor_object.regions
+        voronoi_plot_2d(vor_object,show_vertices=False,line_colors = 'blue')
+    plt.title("Voronoi Seeding")
+    plt.legend()
+    plt.show()
+    
+
+
+
+    return
+
 def assign_biomes(size,altitude_map,temp_map,WORLD_SEED):
     biome_map = [ [ 0 for _ in range(size)] for _ in range(size)]
     altitude_min = np.min(altitude_map)
@@ -298,38 +378,32 @@ def display_biomes_GUI(biome_map,SEED_AS_STRING):
 # Testing World Seed Generation
 
 # seedAsString = input("Enter a World Seed: ")
+def main():
+    print("Starting Program...")
 
-seedAsString = create_seed()
-WORLD_SEED = seed_from_string(seedAsString)
-random.seed(WORLD_SEED)
+    #SEED GENERATION
+    seedAsString = create_seed()
+    WORLD_SEED = seed_from_string(seedAsString)
+    random.seed(WORLD_SEED)
 
-print(f"Seed: {seedAsString} ({WORLD_SEED})")
-print(random.randint(0, 100))  # Will always be the same for "bananas"
+    print(f"Seed: {seedAsString} ({WORLD_SEED})")
+    print(random.randint(0, 100))  # Will always be the same for "bananas"
+    #WORLD GENERATION
+    WORLD_SIZE = 512*2
+    WORLD_HEIGHT = 1.0
+    alt_map = create_altitude_map(WORLD_SIZE,WORLD_SEED % 256) #currently making smaller for pnoise to handle ... 100,000 unique worlds 
+    temp_map = create_temp_map(WORLD_SIZE,alt_map,WORLD_SEED)
+    biome_map = assign_biomes(WORLD_SIZE,alt_map,temp_map,WORLD_SEED)
+    #DISPLAY
+    display_world_GUI(alt_map,seedAsString)
+    # display_biomes_GUI(biome_map,seedAsString)
 
-WORLD_SIZE = 512
-WORLD_HEIGHT = 1.0
-alt_map = create_altitude_map(WORLD_SIZE,WORLD_SEED % 256) #currently making smaller for pnoise to handle ... 100,000 unique worlds 
-temp_map = create_temp_map(WORLD_SIZE,alt_map,WORLD_SEED)
-biome_map = assign_biomes(WORLD_SIZE,alt_map,temp_map,WORLD_SEED)
-# create_land(world_map,WORLD_HEIGHT)
-# water_function(world_map,WORLD_HEIGHT,0.55)
-display_world_GUI(alt_map,seedAsString)
-display_biomes_GUI(biome_map,seedAsString)
-# create_land(world_map,WORLD_HEIGHT)
-
-
-
-
-
-
+    write_world_to_file(seedAsString,alt_map,"mapSymbol","symbol")
+    write_world_to_file(seedAsString,temp_map,"mapValue","value")
 
 
+    # COLOR PIXELS MAP
+    # display_world_GUI(world_map)
 
 
-write_world_to_file(seedAsString,alt_map,"mapSymbol","symbol")
-write_world_to_file(seedAsString,temp_map,"mapValue","value")
-
-
-# COLOR PIXELS MAP
-# display_world_GUI(world_map)
-
+main()
