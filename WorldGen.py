@@ -284,7 +284,7 @@ def Voronoi_seeding(size):
     
    
     vor_points = np.array(vor_points,dtype=float) #converting to NumPy array (for [:,0] & [:,1])
-    plt.scatter(vor_points[:,0],vor_points[:,1],label="Seed Points")
+    plt.scatter(vor_points[:,0],vor_points[:,1])
     if len(vor_points) == 0: print("No seed points generated")
     
     if len(vor_points > 3):
@@ -293,14 +293,9 @@ def Voronoi_seeding(size):
         vor_regions = vor_object.regions
         voronoi_plot_2d(vor_object,show_vertices=False,line_colors = 'blue')
     plt.title("Voronoi Seeding")
-    plt.legend()
+    # plt.legend()
     plt.show()
-    
 
-
-
-    return vor_points
-def identify_border_cells(vor_points,size,WORLD_SEED):
     vor_ID = np.zeros((size, size), dtype=int)
 
     for col in range(size):
@@ -320,7 +315,27 @@ def identify_border_cells(vor_points,size,WORLD_SEED):
     plt.colorbar()
     plt.title("Generated Voronoi Regions")
     plt.show()
-    return vor_ID
+    
+
+
+
+    return vor_points,vor_ID
+def identify_border_cells(vor_regions,size):
+    is_vor_border = np.zeros((size, size), dtype=int)
+
+    for row in range(size):
+        for col in range(size):
+            if (row > 0 and row < (size - 1)): # ensures within vert bounds
+                if (vor_regions[row][col] != vor_regions[row+1][col]) or (vor_regions[row][col] != vor_regions[row-1][col]): is_vor_border[row][col] = 1
+            if (col > 0 and col < (size - 1)):
+                if (vor_regions[row][col] != vor_regions[row][col-1]) or (vor_regions[row][col] != vor_regions[row][col+1]): is_vor_border[row][col] = 1
+
+    plt.figure("Boundaries")
+    plt.imshow(is_vor_border,cmap="gray",label="Boundaries")
+    plt.colorbar()
+    plt.title("Generated Voronoi Edges")
+    plt.show()
+    return is_vor_border
 
 
 def assign_biomes(size,altitude_map,temp_map,WORLD_SEED):
@@ -430,5 +445,5 @@ def main():
 
 
 size = 20
-seeds = Voronoi_seeding(size)
-identify_border_cells(seeds,size,0)
+seeds,vor_regions = Voronoi_seeding(size)
+identify_border_cells(vor_regions,size)
