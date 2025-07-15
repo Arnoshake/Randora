@@ -336,7 +336,35 @@ def identify_border_cells(vor_regions,size):
     plt.title("Generated Voronoi Edges")
     plt.show()
     return is_vor_border
+def tectonic_plates(vor_ID,vor_regions,size,alt_map,WORLD_SEED):
+    #setting random to WORLD_SEED
+    rng = np.random.default_rng(WORLD_SEED)
 
+    def create_random_unit_vector():
+        theta= math.radians( rng.integers(0,361) )
+        x = math.cos( theta)
+        y = math.sin(theta)
+        return (x,y)
+    
+    tectonic_plate_dict = {}
+    for regions_ID in range(len(vor_ID)):
+        if (rng.integers(0,101) > 70):
+            plate_type = "continental"
+            base_elevation = rng.uniform(0.2,0.4)
+        else: 
+            plate_type = "oceanic"
+            base_elevation = rng.uniform(-0.4,-0.2)
+
+
+        tect_plate_info = {}
+        tect_plate_info["drift"] = create_random_unit_vector()
+        tect_plate_info["type"] = plate_type
+        tect_plate_info["base_elevation"] = base_elevation
+        
+        tectonic_plate_dict[regions_ID] = tect_plate_info
+    print(tectonic_plate_dict)
+    return tectonic_plate_dict
+    
 
 def assign_biomes(size,altitude_map,temp_map,WORLD_SEED):
     biome_map = [ [ 0 for _ in range(size)] for _ in range(size)]
@@ -443,7 +471,15 @@ def main():
     # COLOR PIXELS MAP
     # display_world_GUI(world_map)
 
+print("Starting Program...")
+
+#SEED GENERATION
+seedAsString = create_seed()
+WORLD_SEED = seed_from_string(seedAsString)
+random.seed(WORLD_SEED)
+print(f"Seed: {seedAsString} ({WORLD_SEED})")
 
 size = 20
 seeds,vor_regions = Voronoi_seeding(size)
 identify_border_cells(vor_regions,size)
+tectonic_plates(seeds,vor_regions,size,"WIP",WORLD_SEED)
