@@ -275,16 +275,17 @@ def create_temp_map(size, altitude_map,WORLD_SEED):
         
     
     return temp_map
-def Voronoi_seeding():
-    size = 20
+
+def Voronoi_seeding(size):
+    
 
     vor_points = np.random.rand(10,2) * size
     
     
    
     vor_points = np.array(vor_points,dtype=float) #converting to NumPy array (for [:,0] & [:,1])
-    plt.scatter(vor_points[:,0],vor_points[:,1])
-    if len(vor_points == 0): print("No seed points generated")
+    plt.scatter(vor_points[:,0],vor_points[:,1],label="Seed Points")
+    if len(vor_points) == 0: print("No seed points generated")
     
     if len(vor_points > 3):
         vor_object = Voronoi(vor_points)
@@ -298,7 +299,29 @@ def Voronoi_seeding():
 
 
 
-    return
+    return vor_points
+def identify_border_cells(vor_points,size,WORLD_SEED):
+    vor_ID = np.zeros((size, size), dtype=int)
+
+    for col in range(size):
+        for row in range(size):
+            min_dist = float('inf')
+            min_ID = 0
+            for ID,seed in enumerate(vor_points):
+                sx, sy = seed[0],seed[1]
+                dist = ((sy - row)**2) + ((sx-col)**2)
+                if dist < min_dist:
+                    min_dist = dist
+                    min_ID = ID
+            vor_ID[row][col] = min_ID
+
+    plt.figure("Region")
+    plt.imshow(vor_ID,cmap="gray",label="Regions")
+    plt.colorbar()
+    plt.title("Generated Voronoi Regions")
+    plt.show()
+    return vor_ID
+
 
 def assign_biomes(size,altitude_map,temp_map,WORLD_SEED):
     biome_map = [ [ 0 for _ in range(size)] for _ in range(size)]
@@ -406,4 +429,6 @@ def main():
     # display_world_GUI(world_map)
 
 
-main()
+size = 20
+seeds = Voronoi_seeding(size)
+identify_border_cells(seeds,size,0)
