@@ -296,7 +296,7 @@ def Voronoi_seeding(size):
     # plt.legend()
     plt.show()
 
-    vor_ID = np.zeros((size, size), dtype=int)
+    vor_ID_map = np.zeros((size, size), dtype=int)
 
     for col in range(size):
         for row in range(size):
@@ -308,10 +308,10 @@ def Voronoi_seeding(size):
                 if dist < min_dist:
                     min_dist = dist
                     min_ID = ID
-            vor_ID[row][col] = min_ID
+            vor_ID_map[row][col] = min_ID
 
     plt.figure("Region")
-    plt.imshow(vor_ID,cmap="gray",label="Regions")
+    plt.imshow(vor_ID_map,cmap="gray",label="Regions")
     plt.colorbar()
     plt.title("Generated Voronoi Regions")
     plt.show()
@@ -319,7 +319,7 @@ def Voronoi_seeding(size):
 
 
 
-    return vor_points,vor_ID
+    return vor_points,vor_ID_map
 def identify_border_cells(vor_regions,size):
     is_vor_border = np.zeros((size, size), dtype=int)
 
@@ -336,7 +336,7 @@ def identify_border_cells(vor_regions,size):
     plt.title("Generated Voronoi Edges")
     plt.show()
     return is_vor_border
-def tectonic_plates(vor_ID,vor_regions,size,alt_map,WORLD_SEED):
+def create_tectonic_plates(vor_ID,vor_regions,size,alt_map,WORLD_SEED):
     #setting random to WORLD_SEED
     rng = np.random.default_rng(WORLD_SEED)
 
@@ -364,7 +364,27 @@ def tectonic_plates(vor_ID,vor_regions,size,alt_map,WORLD_SEED):
         tectonic_plate_dict[regions_ID] = tect_plate_info
     print(tectonic_plate_dict)
     return tectonic_plate_dict
+def world_by_plates(vor_ID_list,vor_regions_map,size,WORLD_SEED):
+    altitude_map = np.zeros((size,size),dtype=int)
+    def create_plate_adjacency(vor_points):
+        vor_object = Voronoi(vor_points)
+        ridge_points = vor_object.ridge_points
+
+        adjacency = {}
+        for a,b in ridge_points:
+            if a not in adjacency:
+                adjacency[a] = []
+            if b not in adjacency:
+                adjacency[b] = []
+            adjacency[a].append(b)
+            adjacency[b].append(a)
+        return adjacency
+
+    adjacency_dict = create_plate_adjacency(vor_ID_list)
+
     
+    return
+
 
 def assign_biomes(size,altitude_map,temp_map,WORLD_SEED):
     biome_map = [ [ 0 for _ in range(size)] for _ in range(size)]
@@ -482,4 +502,4 @@ print(f"Seed: {seedAsString} ({WORLD_SEED})")
 size = 20
 seeds,vor_regions = Voronoi_seeding(size)
 identify_border_cells(vor_regions,size)
-tectonic_plates(seeds,vor_regions,size,"WIP",WORLD_SEED)
+plates = create_tectonic_plates(seeds,vor_regions,size,"WIP",WORLD_SEED)
