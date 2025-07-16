@@ -185,7 +185,7 @@ def display_world_GUI(world_map,SEED_AS_STRING):
         fig.canvas.manager.window.raise_()
     except:
         pass
-    plt.show()
+    #plt.show()
     # plt.title(SEED_AS_STRING)
     # plt.show()
     # plt.imshow(world_map, cmap="gist_earth", interpolation='nearest',alpha =1.0,vmin = -1,vmax = 1)
@@ -294,7 +294,7 @@ def Voronoi_seeding(size):
         voronoi_plot_2d(vor_object,show_vertices=False,line_colors = 'blue')
     plt.title("Voronoi Seeding")
     # plt.legend()
-    plt.show()
+   # plt.show()
 
     vor_ID_map = np.zeros((size, size), dtype=int)
 
@@ -314,7 +314,7 @@ def Voronoi_seeding(size):
     plt.imshow(vor_ID_map,cmap="gray",label="Regions")
     plt.colorbar()
     plt.title("Generated Voronoi Regions")
-    plt.show()
+    #plt.show()
     
 
 
@@ -334,7 +334,7 @@ def identify_border_cells(vor_regions,size):
     plt.imshow(is_vor_border,cmap="gray",label="Boundaries")
     plt.colorbar()
     plt.title("Generated Voronoi Edges")
-    plt.show()
+    #plt.show()
     return is_vor_border
 def create_tectonic_plates(vor_ID,vor_regions,size,WORLD_SEED):
     #setting random to WORLD_SEED
@@ -365,8 +365,7 @@ def create_tectonic_plates(vor_ID,vor_regions,size,WORLD_SEED):
     print(tectonic_plate_dict)
     return tectonic_plate_dict
 
-def create_fault_map(vor_ID_list,vor_regions_map,size,WORLD_SEED):
-    tect_plates = create_tectonic_plates(vor_ID_list,vor_regions_map,size,WORLD_SEED)
+def create_fault_map(vor_ID_list,vor_regions_map,tect_plates,size,WORLD_SEED): # 2 = converge, 1 = transform, 0 = passive, -1 = diverge
     vor_obj = Voronoi(vor_ID_list)
     ridge_points = vor_obj.ridge_points
     fault_lines_map = np.zeros((size,size),dtype=int)
@@ -375,8 +374,24 @@ def create_fault_map(vor_ID_list,vor_regions_map,size,WORLD_SEED):
         if -1 not in vertex_indices: #skips infinite lines/borders
             v1 = vor_obj.vertices[ vertex_indices[0] ]
             v2 = vor_obj.vertices[ vertex_indices[1] ]
+            def clip_line_to_bounds(x1, y1, x2, y2, width, height):
+                    def clamp(val, minval, maxval):
+                        return max(minval, min(val, maxval))
+
+                    # Clip both endpoints to the map boundaries
+                    x1_clipped = clamp(x1, 0, width - 1)
+                    y1_clipped = clamp(y1, 0, height - 1)
+                    x2_clipped = clamp(x2, 0, width - 1)
+                    y2_clipped = clamp(y2, 0, height - 1)
+
+                    return int(x1_clipped), int(y1_clipped), int(x2_clipped), int(y2_clipped)
+            x1C,y1C,x2C,y2C = clip_line_to_bounds(v1[0],v1[1],v2[0],v2[1],size,size)
+            v1 = np.array([x1C,y1C])
+            v2 = np.array([x2C,y2C])
+            
             dist = ( ( (v2[0]-v1[0])**2) + ( (v2[1]-v1[1])**2) ) **0.5
-            t = 1 / dist
+            failsafe= 1e-8
+            t = 1 / max(dist,failsafe)
             t_values = np.linspace(0,1,int(dist)+1)
             #interpolation for the fault line
             
@@ -403,23 +418,26 @@ def create_fault_map(vor_ID_list,vor_regions_map,size,WORLD_SEED):
                 p2_parallel = np.dot(p2_vector,fault_direction)
                 parallel_diff = abs(p1_parallel - p2_parallel)
 
-                row = int(math.floor(interpol_pt[1]))
-                col = int(math.floor(interpol_pt[0]))
+                row = int(np.clip(math.floor(interpol_pt[1]), 0, size - 1))
+                col = int(np.clip(math.floor(interpol_pt[0]), 0, size - 1))
+
+                
                 if ( 0 <= row < size and 0 <= col < size):
 
-                    if net_norm < -0.5: #strong convergence
-                        fault_lines_map[row][col] = 2
-                    elif net_norm > 0.5: #strong divergence
-                        fault_lines_map[row][col] = -1
+                    if net_norm < -0.5: fault_lines_map[row][col] = 1#strong convergence
+                    elif net_norm > 0.5: fault_lines_map[row][col] = -1#strong divergence
                     else: #passive or transform
-                        if parallel_diff > 0.5: #Transform
-                            fault_lines_map[row][col] = 1
-                        else: # passive
-                            fault_lines_map[row][col] = 0
+                        if parallel_diff > 0.5: fault_lines_map[row][col] = 0#Transform     --> DETERMINE LATER WHAT THIS WILL DO
+                        else: fault_lines_map[row][col] = 0# passive
+                            
+    plt.figure("Faults")
+    plt.imshow(fault_lines_map,cmap="gray",label="Regions")
+    plt.colorbar()
+    plt.title("Generated Plates")
     return fault_lines_map
 def world_by_plates(vor_ID_list,vor_regions_map,size,WORLD_SEED):
     
-    altitude_map = np.zeros((size,size),dtype=int)
+    altitude_map = np.zeros((size,size),dtype=float)
     
     def create_plate_adjacency(vor_points):
         vor_object = Voronoi(vor_points)
@@ -434,13 +452,27 @@ def world_by_plates(vor_ID_list,vor_regions_map,size,WORLD_SEED):
             adjacency[a].append(b)
             adjacency[b].append(a)
         return adjacency
+    adjacency_dict = create_plate_adjacency(vor_ID_list)
 
-    adjacency_dict = create_plate_adjacency(vor_ID_list,vor_regions_map,size,WORLD_SEED)
-    tect_plates = create_tectonic_plates()
+    tect_plates = create_tectonic_plates(vor_ID_list,vor_regions_map,size,WORLD_SEED)
+    fault_map = create_fault_map(vor_ID_list,vor_regions,tect_plates,size,WORLD_SEED)
     for rows in range(size): 
         for cols in range(size):
             altitude_map[rows][cols] = tect_plates[ vor_regions[rows][cols] ]["base_elevation"]
-    return
+    
+
+
+    colors = ["#0000FF", "#FFDAB9", "#228B22", "#A9A9A9", "#FFFFFF"]
+    bounds = [0.0, 0.2, 0.3, 0.6, 0.9, 1.0]
+    plt.figure("World Map")
+    cmap = ListedColormap(colors)
+    norm = BoundaryNorm(bounds, len(colors))
+    plt.imshow(altitude_map, cmap=cmap, norm=norm)
+    plt.colorbar()
+    plt.legend()
+    plt.title("Generated World Map By Plates")
+
+    return altitude_map
 
 
 def assign_biomes(size,altitude_map,temp_map,WORLD_SEED):
@@ -506,7 +538,7 @@ def display_biomes_GUI(biome_map,SEED_AS_STRING):
     cbar.set_label("Biome Type")
     plt.title("Biome Map")
     plt.axis("off")
-    plt.show()
+   # plt.show()
     return
 
 
@@ -561,10 +593,6 @@ size = 20
 seeds,vor_regions = Voronoi_seeding(size)
 identify_border_cells(vor_regions,size)
 plates = create_tectonic_plates(seeds,vor_regions,size,WORLD_SEED)
-fault_map = create_fault_map(seeds,vor_regions,size,WORLD_SEED)
+world = world_by_plates(seeds,vor_regions,size,WORLD_SEED)
 
-plt.figure("Faults")
-plt.imshow(fault_map,cmap="gray",label="Regions")
-plt.colorbar()
-plt.title("Generated Plates")
 plt.show()
