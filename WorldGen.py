@@ -229,6 +229,7 @@ def create_altitude_map(size, WORLD_SEED): #create land noise
         
     
     return world_map
+
 def create_temp_map(size, altitude_map,WORLD_SEED): 
     zoom_level = 1.30  # you can tweak this higher/lower
     #lower at higher
@@ -348,7 +349,7 @@ def create_tectonic_plates(vor_ID,vor_regions,size,WORLD_SEED):
     
     tectonic_plate_dict = {}
     for regions_ID in range(len(vor_ID)):
-        if (rng.integers(0,101) > 70):
+        if (rng.integers(0,101) > 50):
             plate_type = "continental"
             base_elevation = rng.uniform(0.2,0.4)
         else: 
@@ -456,10 +457,40 @@ def world_by_plates(vor_ID_list,vor_regions_map,size,WORLD_SEED):
 
     tect_plates = create_tectonic_plates(vor_ID_list,vor_regions_map,size,WORLD_SEED)
     fault_map = create_fault_map(vor_ID_list,vor_regions,tect_plates,size,WORLD_SEED)
+    def apply_noise_to_continental_plate(terrain_map,vor_ID_of_interest,vor_regions,size, WORLD_SEED): #create land noise
+        #lower at higher
+
+        # scale = zoom_level / size
+        scale = 0.01
+        world_map = terrain_map
+        rng = random.Random(WORLD_SEED)
+        row_offset = rng.uniform(0, 50)
+        col_offset = rng.uniform(0, 50)
+        for row in range(size):
+            for col in range(size):
+                if vor_regions[row][col] == vor_ID_of_interest:
+                    x = (col* scale + col_offset) 
+                    y = (row* scale + row_offset) 
+                    val = pnoise2 ( x,y,
+                                    octaves=4,
+                                    persistence=0.5,
+                                    lacunarity=2.0,
+                                    base=WORLD_SEED%256)
+                    # val = ((val + 1)/2) #normalize btw [0,1]
+
+                    world_map[row][col] += val *.4
+
+        return
+    
+
     for rows in range(size): 
         for cols in range(size):
             altitude_map[rows][cols] = tect_plates[ vor_regions[rows][cols] ]["base_elevation"]
-    
+    for plate_id,coords in enumerate(vor_ID_list):
+        #for continental plate, apply perlin noise to make into land
+        if tect_plates[plate_id]["type"] == "continental":
+            apply_noise_to_continental_plate(altitude_map,plate_id,vor_regions,size, WORLD_SEED)
+
 
 
     colors = ["#0000FF", "#FFDAB9", "#228B22", "#A9A9A9", "#FFFFFF"]
@@ -472,6 +503,23 @@ def world_by_plates(vor_ID_list,vor_regions_map,size,WORLD_SEED):
     plt.legend()
     plt.title("Generated World Map By Plates")
 
+    print("Altitude range:", np.min(altitude_map), "→", np.max(altitude_map))
+    plt.figure("Debug Unclipped World")
+    colors = [
+        "#000033",  # deep ocean (< -0.4)
+        "#000080",  # mid ocean  (-0.4 to -0.2)
+        "#0077be",  # shallow ocean (-0.2 to 0)
+
+        "#f4a261",  # beach/sand (0 to 0.1)
+        "#3B9C35",  # grassy green (0.1 to 0.5)
+        "#707070",  # mountains (0.5 to 0.7)
+        "#ffffff",  # snowy peaks (0.7+)
+    ]
+    bounds = [-1.0, -0.4, -0.2, 0.0, 0.1, 0.5, 0.7, 1.0]
+    cmap = ListedColormap(colors)
+    norm = BoundaryNorm(bounds, len(colors))
+    plt.imshow(altitude_map, cmap=cmap,norm=norm)
+    plt.colorbar()
     return altitude_map
 
 
@@ -588,7 +636,7 @@ WORLD_SEED = seed_from_string(seedAsString)
 random.seed(WORLD_SEED)
 print(f"Seed: {seedAsString} ({WORLD_SEED})")
 
-size = 20
+size = 100
 
 seeds,vor_regions = Voronoi_seeding(size)
 identify_border_cells(vor_regions,size)
