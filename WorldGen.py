@@ -336,7 +336,7 @@ def identify_border_cells(vor_regions,size):
     plt.title("Generated Voronoi Edges")
     plt.show()
     return is_vor_border
-def create_tectonic_plates(vor_ID,vor_regions,size,alt_map,WORLD_SEED):
+def create_tectonic_plates(vor_ID,vor_regions,size,WORLD_SEED):
     #setting random to WORLD_SEED
     rng = np.random.default_rng(WORLD_SEED)
 
@@ -364,8 +364,63 @@ def create_tectonic_plates(vor_ID,vor_regions,size,alt_map,WORLD_SEED):
         tectonic_plate_dict[regions_ID] = tect_plate_info
     print(tectonic_plate_dict)
     return tectonic_plate_dict
+
+def create_fault_map(vor_ID_list,vor_regions_map,size,WORLD_SEED):
+    tect_plates = create_tectonic_plates(vor_ID_list,vor_regions_map,size,WORLD_SEED)
+    vor_obj = Voronoi(vor_ID_list)
+    ridge_points = vor_obj.ridge_points
+    fault_lines_map = np.zeros((size,size),dtype=int)
+    for (p1, p2), vertex_indices in zip(vor_obj.ridge_points, vor_obj.ridge_vertices):
+        # (p1,p2) = pair of adjaent plates ... vertex_indices = indices of the ends of their shared line
+        if -1 not in vertex_indices: #skips infinite lines/borders
+            v1 = vor_obj.vertices[ vertex_indices[0] ]
+            v2 = vor_obj.vertices[ vertex_indices[1] ]
+            dist = ( ( (v2[0]-v1[0])**2) + ( (v2[1]-v1[1])**2) ) **0.5
+            t = 1 / dist
+            t_values = np.linspace(0,1,int(dist)+1)
+            #interpolation for the fault line
+            
+            for t in t_values:
+                interpol_pt = v1 + t*(v2 - v1)
+                
+                p1_vector = tect_plates[p1]["drift"]
+                p2_vector = tect_plates[p2]["drift"]
+                dot_product = np.dot(p1_vector,p2_vector)
+
+                #Creating a unit vector pointing along the fault
+                fault_direction = v2 - v1
+                fault_direction = (fault_direction) / np.linalg.norm(fault_direction)
+                # creating vector perpendicular to faul     n = [-y,x]
+                fault_normal = np.array([-fault_direction[1],fault_direction[0]])
+
+                
+
+                p1_normal = np.dot(p1_vector,fault_normal)
+                p2_normal = np.dot(p2_vector,fault_normal)
+                net_norm = p1_normal + p2_normal
+
+                p1_parallel = np.dot(p1_vector,fault_direction)
+                p2_parallel = np.dot(p2_vector,fault_direction)
+                parallel_diff = abs(p1_parallel - p2_parallel)
+
+                row = int(math.floor(interpol_pt[1]))
+                col = int(math.floor(interpol_pt[0]))
+                if ( 0 <= row < size and 0 <= col < size):
+
+                    if net_norm < -0.5: #strong convergence
+                        fault_lines_map[row][col] = 2
+                    elif net_norm > 0.5: #strong divergence
+                        fault_lines_map[row][col] = -1
+                    else: #passive or transform
+                        if parallel_diff > 0.5: #Transform
+                            fault_lines_map[row][col] = 1
+                        else: # passive
+                            fault_lines_map[row][col] = 0
+    return fault_lines_map
 def world_by_plates(vor_ID_list,vor_regions_map,size,WORLD_SEED):
+    
     altitude_map = np.zeros((size,size),dtype=int)
+    
     def create_plate_adjacency(vor_points):
         vor_object = Voronoi(vor_points)
         ridge_points = vor_object.ridge_points
@@ -380,9 +435,11 @@ def world_by_plates(vor_ID_list,vor_regions_map,size,WORLD_SEED):
             adjacency[b].append(a)
         return adjacency
 
-    adjacency_dict = create_plate_adjacency(vor_ID_list)
-
-    
+    adjacency_dict = create_plate_adjacency(vor_ID_list,vor_regions_map,size,WORLD_SEED)
+    tect_plates = create_tectonic_plates()
+    for rows in range(size): 
+        for cols in range(size):
+            altitude_map[rows][cols] = tect_plates[ vor_regions[rows][cols] ]["base_elevation"]
     return
 
 
@@ -500,6 +557,14 @@ random.seed(WORLD_SEED)
 print(f"Seed: {seedAsString} ({WORLD_SEED})")
 
 size = 20
+
 seeds,vor_regions = Voronoi_seeding(size)
 identify_border_cells(vor_regions,size)
-plates = create_tectonic_plates(seeds,vor_regions,size,"WIP",WORLD_SEED)
+plates = create_tectonic_plates(seeds,vor_regions,size,WORLD_SEED)
+fault_map = create_fault_map(seeds,vor_regions,size,WORLD_SEED)
+
+plt.figure("Faults")
+plt.imshow(fault_map,cmap="gray",label="Regions")
+plt.colorbar()
+plt.title("Generated Plates")
+plt.show()
