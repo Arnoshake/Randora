@@ -16,6 +16,8 @@ from nltk.corpus import words as nltk_words
 WORLD_LIST = nltk_words
 #FAULT LINE
 from skimage.draw import line
+#FAULT LINE FALL OFF FOR TERRAIN
+from scipy.ndimage import distance_transform_edt
 
 print(noise.pnoise2(0.5, 0.5))
 def seed_from_string(s):
@@ -195,102 +197,92 @@ def display_world_GUI(world_map,SEED_AS_STRING):
     # plt.show()
     return
 
+def create_altitude_map(size, plate_list,plate_map,is_vor_border_map,fault_lines_map, WORLD_SEED): #create land noise
+    zoom_level = 4.0 # you can tweak this higher/lower
 
-    
-
-def create_altitude_map(size, plate_map, WORLD_SEED): #create land noise
-    zoom_level = 1.30  # you can tweak this higher/lower
     #lower at higher
+    scale = zoom_level / size
     rng = random.Random(WORLD_SEED)
     # scale = zoom_level / size
-    scale = 0.01
+
     #ASSIGN PLATES A BIAS AND RUGGEDNESS
-    num_plates = np.max(plate_map) + 1
-    plate_bias = [rng.uniform(-0.2,0.4) for _ in range(num_plates)]
-    plate_ruggedness = [rng.uniform(0.5,1.5) for _ in range(num_plates)]
-    
     altitude_map = np.zeros((size,size))
    
+    plate_type_mask = np.zeros((size, size)) #1 = ocean
+   #BASE BlANKET OF NOISE
     row_offset = rng.uniform(0, 50)
     col_offset = rng.uniform(0, 50)
     for row in range(size):
         for col in range(size):
-            #grab the relevant plate values
-            plate_id = plate_map[row][col]
-            bias = plate_bias[plate_id]
-            rugged = plate_ruggedness[plate_id]
+            
 
-
-            nx = (col* scale + col_offset) 
-            ny = (row* scale + row_offset) 
-            pval = pnoise2 ( row,col,
+            nx = ((col)* scale + col_offset) 
+            ny = ((row)* scale + row_offset) 
+            pval = pnoise2 ( ny,nx,
                             octaves=4,
                             persistence=0.5,
                             lacunarity=2.0,
                             base=WORLD_SEED%256)
-            altitude = pval * rugged + bias
+            altitude = (pval + 1)/2.0 #normalize btw [0,1]
             altitude_map[row][col] = altitude
 
+    shore_mask = np.zeros((size, size))
+    for row in range(1,size-1):
+        for col in range(1,size-1):
+            current = plate_type_mask[row][col]
+            neighbors = [
+                plate_type_mask[row+1][col],
+                plate_type_mask[row-1][col],
+                plate_type_mask[row][col+1],
+                plate_type_mask[row][col-1],
+            ]
+            if any(n != current for n in neighbors):
+                shore_mask[row][col] = 1
     
+    # FAULT EFFECTS
+    adjusted_map = np.copy(altitude_map)
+    falloff, magnitude = 5.0, 3.0
+
+    convergent_mask = (fault_lines_map == 2).astype(float)
+    dist_conv = distance_transform_edt(1 - convergent_mask)
+    # Get current terrain base
+    base = np.copy(altitude_map)
+
+    # Faults raise elevation: blend fault height (1.0) with Perlin terrain
+    conv_weight = np.exp(-dist_conv / 3)
+    adjusted_map = base * (1 - conv_weight) + 1.0 * conv_weight
+
+    divergent_mask = (fault_lines_map == -2).astype(float)
+    dist_div = distance_transform_edt(1 - divergent_mask)
+    adjusted_map -= np.exp(-dist_div / falloff) * magnitude
+
+    adjusted_map = np.clip(adjusted_map, 0.0, 1.0)
+
+    # COLOR DISPLAY
+    bounds = [0.0, 0.4, 0.435, 0.6, 0.9, 1.0]
+
+    colors = [
+        '#1f4e79',  # Deep water
+        '#e0c074',  # Sand
+        '#5cb85c',  # Grass
+        '#888888',  # Mountains
+        '#ffffff'   # Peaks
+    ]
+    terrain_cmap = ListedColormap(colors)
+    terrain_norm = BoundaryNorm(bounds, terrain_cmap.N)
+    
+    plt.figure("Elevation Map")
+    plt.imshow(adjusted_map, cmap=terrain_cmap, norm=terrain_norm)
+    plt.colorbar(boundaries=bounds)
+    plt.axis('off')
+    plt.title("Final Terrain")
+
+
     min_val = min(min(row) for row in altitude_map)
     max_val = max(max(row) for row in altitude_map)
     # print (f"MIN: {min_val} MAX: {max_val}")
-    plt.figure("My Map")           # Optional: set figure title
-    plt.imshow(altitude_map, cmap='terrain')  # cmap options: 'gray', 'terrain', 'viridis', etc.
-    plt.colorbar()                 # Optional: shows a scale bar
-    plt.title("Elevation Map")
-    plt.axis('off')                # Optional: hide axes ticks
-
-        
+    return adjusted_map
     
-    return altitude_map
-
-def create_temp_map(size, altitude_map,WORLD_SEED): 
-    zoom_level = 1.30  # you can tweak this higher/lower
-    #lower at higher
-
-    scale = zoom_level / size
-    temp_map = [ [ 0 for _ in range(size)] for _ in range(size)]
-    rng = random.Random(WORLD_SEED)
-    row_offset = rng.uniform(0, 50)
-    col_offset = rng.uniform(0, 50)
-    
-    cx, cy = size / 2, size / 2  # center of map 
-    height = len(altitude_map)
-    for row in range(size):
-        for col in range(size):
-            altitude = altitude_map[row][col]
-            dx = col - cx
-            dy = row - cy
-            distance = math.sqrt(dx**2 + dy**2)
-            max_dist = math.sqrt(2) * (size / 2)
-            base_temp = 1 - (distance / max_dist)  # warm in center, cold on edge
-            
-            x = (col* scale + col_offset) 
-            y = (row* scale + row_offset) 
-            temp_noise = pnoise2 ( x,y,
-                            octaves=4,
-                            persistence=0.5,
-                            lacunarity=2.0,
-                            base=WORLD_SEED%256)
-            
-            temperature= base_temp + temp_noise * 0.5 #add noise to make more natural
-            
-            temperature -= (altitude ** 1.25) * 0.2 #Decreases temp as altitude increases
-            
-            temperature+=0.25#linear, across the board temp boost
-            cluster_noise = pnoise2(col * 0.01, row * 0.01, octaves=1, base=WORLD_SEED % 256)
-            temperature += cluster_noise * 0.1  # mild warping
-            temperature = max(0, min(1, temperature))
-
-            
-            temp_map[row][col] = temperature
-
-    
-
-        
-    
-    return temp_map
 
 #Vor_regions = 2D Arr holding plate identity
 def Voronoi_seeding(size,seed_density,WORLD_SEED):
@@ -298,21 +290,15 @@ def Voronoi_seeding(size,seed_density,WORLD_SEED):
     num_seeds = int((size**2) * seed_density)
     vor_points = [[rng.uniform(0, size), rng.uniform(0, size)] for _ in range(num_seeds)]
 
-    
-    
-   
     vor_points = np.array(vor_points,dtype=float) #converting to NumPy array (for [:,0] & [:,1])
     plt.scatter(vor_points[:,0],vor_points[:,1])
     if len(vor_points) == 0: print("No seed points generated")
-    
     if len(vor_points > 3):
         vor_object = Voronoi(vor_points)
         vor_vertices = vor_object.vertices
         vor_regions = vor_object.regions
         voronoi_plot_2d(vor_object,show_vertices=False,line_colors = 'blue')
     plt.title("Voronoi Seeding")
-    # plt.legend()
-   # plt.show()
 
     vor_regions = np.zeros((size, size), dtype=int)
 
@@ -332,13 +318,9 @@ def Voronoi_seeding(size,seed_density,WORLD_SEED):
     plt.imshow(vor_regions,cmap="gray",label="Regions")
     plt.colorbar()
     plt.title("Generated Voronoi Regions")
-    #plt.show()
     
-
-
-
     return vor_points,vor_regions
-def identify_border_cells(size, vor_regions,plate_list,vor_seeds): #returns binary value map of borders 
+def create_fault_lines(size, vor_regions,plate_list,vor_seeds): #returns binary value map of borders 
     is_vor_border = np.zeros((size, size), dtype=int)
     def create_adjacency(size, vor_regions):
         adjacency_dict = {}
@@ -412,8 +394,8 @@ def identify_border_cells(size, vor_regions,plate_list,vor_seeds): #returns bina
     plt.imshow(fault_map,cmap="gray",label="Boundaries")
     plt.colorbar()
     plt.title("Generated Fault Map")
-    plt.show()
-    return is_vor_border
+    # plt.show()
+    return is_vor_border,fault_map
 def create_tectonic_plates(vor_ID,vor_regions,size,WORLD_SEED): # returns dict of plates
     #setting random to WORLD_SEED
     rng = np.random.default_rng(WORLD_SEED)
@@ -495,17 +477,9 @@ def create_fault_map(vor_ID_list, vor_regions_map, tect_plates, size, WORLD_SEED
     plt.imshow(fault_lines_map, cmap="gray")
     plt.title("All Fault Lines (with Infinite Edges)")
     plt.colorbar()
-    plt.show()
+    # plt.show()
 
     return fault_lines_map
-
-
-
-
-
-
-
-
 
 
 # Testing World Seed Generation
@@ -525,13 +499,13 @@ def main():
     WORLD_SIZE = 512*2
     WORLD_HEIGHT = 1.0
     alt_map = create_altitude_map(WORLD_SIZE,WORLD_SEED % 256) #currently making smaller for pnoise to handle ... 100,000 unique worlds 
-    temp_map = create_temp_map(WORLD_SIZE,alt_map,WORLD_SEED)
+    
     #DISPLAY
     display_world_GUI(alt_map,seedAsString)
     # display_biomes_GUI(biome_map,seedAsString)
 
     write_world_to_file(seedAsString,alt_map,"mapSymbol","symbol")
-    write_world_to_file(seedAsString,temp_map,"mapValue","value")
+    write_world_to_file(seedAsString,alt_map,"mapValue","value")
 
 
     # COLOR PIXELS MAP
@@ -547,9 +521,8 @@ print(f"Seed: {seedAsString} ({WORLD_SEED})")
 
 size = 256
 
-seeds,vor_regions = Voronoi_seeding(size,0.00025,WORLD_SEED)
-
+seeds,vor_regions = Voronoi_seeding(size,0.00010,WORLD_SEED)
 plates = create_tectonic_plates(seeds,vor_regions,size,WORLD_SEED)
-identify_border_cells(size,vor_regions,plates,seeds)
-altitude = create_altitude_map(size,vor_regions,WORLD_SEED)
+is_vor_border,fault_lines = create_fault_lines(size,vor_regions,plates,seeds)
+altitude = create_altitude_map(size,plates,vor_regions,is_vor_border,fault_lines,WORLD_SEED)
 plt.show()
