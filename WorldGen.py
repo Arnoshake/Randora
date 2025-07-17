@@ -349,7 +349,7 @@ def create_tectonic_plates(vor_ID,vor_regions,size,WORLD_SEED):
     
     tectonic_plate_dict = {}
     for regions_ID in range(len(vor_ID)):
-        if (rng.integers(0,101) > 50):
+        if (rng.integers(0,101) > 40):
             plate_type = "continental"
             base_elevation = rng.uniform(0.2,0.4)
         else: 
@@ -367,15 +367,34 @@ def create_tectonic_plates(vor_ID,vor_regions,size,WORLD_SEED):
     return tectonic_plate_dict
 
 def create_fault_map(vor_ID_list,vor_regions_map,tect_plates,size,WORLD_SEED): # 2 = converge, 1 = transform, 0 = passive, -1 = diverge
+    #ridge points are the line that divides two points.
+    #the direction between two points is then perpendicular to this ridge point/line
+
+
     vor_obj = Voronoi(vor_ID_list)
     ridge_points = vor_obj.ridge_points
     fault_lines_map = np.zeros((size,size),dtype=int)
     for (p1, p2), vertex_indices in zip(vor_obj.ridge_points, vor_obj.ridge_vertices):
         # (p1,p2) = pair of adjaent plates ... vertex_indices = indices of the ends of their shared line
-        if -1 not in vertex_indices: #skips infinite lines/borders
+        if vertex_indices[0] == -1 and vertex_indices[1] == -1: #BOTH ARE OFF MAP... BAD!
+            continue
+        if -1 in vertex_indices:
+            finite_idx = vertex_indices[1] if vertex_indices[0] ==-1 else vertex_indices[0]
+            finite_vertex = vor_obj.vertices[finite_idx]
+            direction = vor_obj.points[p2] - vor_obj.points[p1]
+            direction = np.array([-direction[1],direction[0]]) #perp
+            norm = np.linalg.norm(direction)
+            if norm == 0:
+                continue
+            direction = direction / norm
+            far_point = finite_vertex +direction * 1000 # effectively infinite as its outside the map
+            v1,v2 = finite_vertex,far_point
+        else: #both are finite
+
             v1 = vor_obj.vertices[ vertex_indices[0] ]
             v2 = vor_obj.vertices[ vertex_indices[1] ]
-            def clip_line_to_bounds(x1, y1, x2, y2, width, height):
+        
+        def clip_line_to_bounds(x1, y1, x2, y2, width, height):
                     def clamp(val, minval, maxval):
                         return max(minval, min(val, maxval))
 
@@ -386,51 +405,48 @@ def create_fault_map(vor_ID_list,vor_regions_map,tect_plates,size,WORLD_SEED): #
                     y2_clipped = clamp(y2, 0, height - 1)
 
                     return int(x1_clipped), int(y1_clipped), int(x2_clipped), int(y2_clipped)
-            x1C,y1C,x2C,y2C = clip_line_to_bounds(v1[0],v1[1],v2[0],v2[1],size,size)
-            v1 = np.array([x1C,y1C])
-            v2 = np.array([x2C,y2C])
-            
-            dist = ( ( (v2[0]-v1[0])**2) + ( (v2[1]-v1[1])**2) ) **0.5
-            failsafe= 1e-8
-            t = 1 / max(dist,failsafe)
-            t_values = np.linspace(0,1,int(dist)+1)
-            #interpolation for the fault line
-            
-            for t in t_values:
-                interpol_pt = v1 + t*(v2 - v1)
+        x1C,y1C,x2C,y2C = clip_line_to_bounds(v1[0],v1[1],v2[0],v2[1],size,size)
+        v1 = np.array([x1C,y1C])
+        v2 = np.array([x2C,y2C])            
+        
+        dist = ( ( (v2[0]-v1[0])**2) + ( (v2[1]-v1[1])**2) ) **0.5
+        failsafe= 1e-8
+        t = 1 / max(dist,failsafe)
+        t_values = np.linspace(0,1,int(dist)+1)
+        #interpolation for the fault line
+        for t in t_values:
+            interpol_pt = v1 + t*(v2 - v1)
                 
-                p1_vector = tect_plates[p1]["drift"]
-                p2_vector = tect_plates[p2]["drift"]
-                dot_product = np.dot(p1_vector,p2_vector)
+            p1_vector = tect_plates[p1]["drift"]
+            p2_vector = tect_plates[p2]["drift"]
+            dot_product = np.dot(p1_vector,p2_vector)
 
-                #Creating a unit vector pointing along the fault
-                fault_direction = v2 - v1
-                fault_direction = (fault_direction) / np.linalg.norm(fault_direction)
-                # creating vector perpendicular to faul     n = [-y,x]
-                fault_normal = np.array([-fault_direction[1],fault_direction[0]])
+            #Creating a unit vector pointing along the fault
+            fault_direction = v2 - v1
+            fault_direction = (fault_direction) / np.linalg.norm(fault_direction)
+            # creating vector perpendicular to faul     n = [-y,x]
+            fault_normal = np.array([-fault_direction[1],fault_direction[0]])
 
-                
+            p1_normal = np.dot(p1_vector,fault_normal)
+            p2_normal = np.dot(p2_vector,fault_normal)
+            net_norm = p1_normal + p2_normal
 
-                p1_normal = np.dot(p1_vector,fault_normal)
-                p2_normal = np.dot(p2_vector,fault_normal)
-                net_norm = p1_normal + p2_normal
+            p1_parallel = np.dot(p1_vector,fault_direction)
+            p2_parallel = np.dot(p2_vector,fault_direction)
+            parallel_diff = abs(p1_parallel - p2_parallel)
 
-                p1_parallel = np.dot(p1_vector,fault_direction)
-                p2_parallel = np.dot(p2_vector,fault_direction)
-                parallel_diff = abs(p1_parallel - p2_parallel)
-
-                row = int(np.clip(math.floor(interpol_pt[1]), 0, size - 1))
-                col = int(np.clip(math.floor(interpol_pt[0]), 0, size - 1))
+            row = int(np.clip(math.floor(interpol_pt[1]), 0, size - 1))
+            col = int(np.clip(math.floor(interpol_pt[0]), 0, size - 1))
 
                 
-                if ( 0 <= row < size and 0 <= col < size):
+            if ( 0 <= row < size and 0 <= col < size):
 
-                    if net_norm < -0.5: fault_lines_map[row][col] = 1#strong convergence
-                    elif net_norm > 0.5: fault_lines_map[row][col] = -1#strong divergence
-                    else: #passive or transform
+                if net_norm < -0.5: fault_lines_map[row][col] = 1#strong convergence
+                elif net_norm > 0.5: fault_lines_map[row][col] = -1#strong divergence
+                else: #passive or transform
                         if parallel_diff > 0.5: fault_lines_map[row][col] = 0#Transform     --> DETERMINE LATER WHAT THIS WILL DO
                         else: fault_lines_map[row][col] = 0# passive
-                            
+       
     plt.figure("Faults")
     plt.imshow(fault_lines_map,cmap="gray",label="Regions")
     plt.colorbar()
@@ -521,6 +537,7 @@ def world_by_plates(vor_ID_list,vor_regions_map,size,WORLD_SEED):
     plt.imshow(altitude_map, cmap=cmap,norm=norm)
     plt.colorbar()
     return altitude_map
+
 
 
 def assign_biomes(size,altitude_map,temp_map,WORLD_SEED):
@@ -636,7 +653,7 @@ WORLD_SEED = seed_from_string(seedAsString)
 random.seed(WORLD_SEED)
 print(f"Seed: {seedAsString} ({WORLD_SEED})")
 
-size = 100
+size = 1000
 
 seeds,vor_regions = Voronoi_seeding(size)
 identify_border_cells(vor_regions,size)
