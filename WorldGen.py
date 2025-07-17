@@ -198,39 +198,52 @@ def display_world_GUI(world_map,SEED_AS_STRING):
 
     
 
-def create_altitude_map(size, WORLD_SEED): #create land noise
+def create_altitude_map(size, plate_map, WORLD_SEED): #create land noise
     zoom_level = 1.30  # you can tweak this higher/lower
     #lower at higher
-
+    rng = random.Random(WORLD_SEED)
     # scale = zoom_level / size
     scale = 0.01
-    print(scale)
-    world_map = [ [ 0 for _ in range(size)] for _ in range(size)]
-    rng = random.Random(WORLD_SEED)
+    #ASSIGN PLATES A BIAS AND RUGGEDNESS
+    num_plates = np.max(plate_map) + 1
+    plate_bias = [rng.uniform(-0.2,0.4) for _ in range(num_plates)]
+    plate_ruggedness = [rng.uniform(0.5,1.5) for _ in range(num_plates)]
+    
+    altitude_map = np.zeros((size,size))
+   
     row_offset = rng.uniform(0, 50)
     col_offset = rng.uniform(0, 50)
     for row in range(size):
         for col in range(size):
-            
-            x = (col* scale + col_offset) 
-            y = (row* scale + row_offset) 
-            val = pnoise2 ( x,y,
+            #grab the relevant plate values
+            plate_id = plate_map[row][col]
+            bias = plate_bias[plate_id]
+            rugged = plate_ruggedness[plate_id]
+
+
+            nx = (col* scale + col_offset) 
+            ny = (row* scale + row_offset) 
+            pval = pnoise2 ( row,col,
                             octaves=4,
                             persistence=0.5,
                             lacunarity=2.0,
                             base=WORLD_SEED%256)
-            val = ((val + 1)/2) #normalize btw [0,1]
-
-            world_map[row][col] = val
+            altitude = pval * rugged + bias
+            altitude_map[row][col] = altitude
 
     
-    min_val = min(min(row) for row in world_map)
-    max_val = max(max(row) for row in world_map)
+    min_val = min(min(row) for row in altitude_map)
+    max_val = max(max(row) for row in altitude_map)
     # print (f"MIN: {min_val} MAX: {max_val}")
+    plt.figure("My Map")           # Optional: set figure title
+    plt.imshow(altitude_map, cmap='terrain')  # cmap options: 'gray', 'terrain', 'viridis', etc.
+    plt.colorbar()                 # Optional: shows a scale bar
+    plt.title("Elevation Map")
+    plt.axis('off')                # Optional: hide axes ticks
 
         
     
-    return world_map
+    return altitude_map
 
 def create_temp_map(size, altitude_map,WORLD_SEED): 
     zoom_level = 1.30  # you can tweak this higher/lower
@@ -279,6 +292,7 @@ def create_temp_map(size, altitude_map,WORLD_SEED):
     
     return temp_map
 
+#Vor_regions = 2D Arr holding plate identity
 def Voronoi_seeding(size,seed_density,WORLD_SEED):
     rng = random.Random(WORLD_SEED)
     num_seeds = int((size**2) * seed_density)
@@ -300,7 +314,7 @@ def Voronoi_seeding(size,seed_density,WORLD_SEED):
     # plt.legend()
    # plt.show()
 
-    vor_ID_map = np.zeros((size, size), dtype=int)
+    vor_regions = np.zeros((size, size), dtype=int)
 
     for col in range(size):
         for row in range(size):
@@ -312,10 +326,10 @@ def Voronoi_seeding(size,seed_density,WORLD_SEED):
                 if dist < min_dist:
                     min_dist = dist
                     min_ID = ID
-            vor_ID_map[row][col] = min_ID
+            vor_regions[row][col] = min_ID
 
     plt.figure("Region")
-    plt.imshow(vor_ID_map,cmap="gray",label="Regions")
+    plt.imshow(vor_regions,cmap="gray",label="Regions")
     plt.colorbar()
     plt.title("Generated Voronoi Regions")
     #plt.show()
@@ -323,9 +337,25 @@ def Voronoi_seeding(size,seed_density,WORLD_SEED):
 
 
 
-    return vor_points,vor_ID_map
-def identify_border_cells(vor_regions,size):
+    return vor_points,vor_regions
+def identify_border_cells(size, vor_regions,plate_list,vor_seeds): #returns binary value map of borders 
     is_vor_border = np.zeros((size, size), dtype=int)
+    def create_adjacency(size, vor_regions):
+        adjacency_dict = {}
+        for row in range(size):
+            for col in range(size):
+                center_plate= vor_regions[row][col]
+                if center_plate not in adjacency_dict:
+                    adjacency_dict[center_plate] = set()
+                for dy,dx in [(+1,0),(-1,0),(0,+1),(0,-1)]:
+                    ny, nx = dy + row, dx + col
+                    if (0<=ny<size) and (0<=nx<size):
+                        neighbor_plate = vor_regions[ny][nx]
+                        if neighbor_plate != center_plate:
+                            adjacency_dict[center_plate].add(neighbor_plate)
+        adjacency = {k: sorted(list(v)) for k, v in adjacency_dict.items()}
+        return adjacency
+    adj_table = create_adjacency(size,vor_regions)
 
     for row in range(size):
         for col in range(size):
@@ -334,13 +364,57 @@ def identify_border_cells(vor_regions,size):
             if (col > 0 and col < (size - 1)):
                 if (vor_regions[row][col] != vor_regions[row][col-1]) or (vor_regions[row][col] != vor_regions[row][col+1]): is_vor_border[row][col] = 1
 
+    #Identify fault type
+    fault_id_table = {}
+    for plate_id in adj_table:
+        drift1 = plate_list[plate_id]["drift"]
+        for neighbors in adj_table[plate_id]:
+            if plate_id not in fault_id_table:
+                fault_id_table[plate_id] = {}
+            if neighbors in fault_id_table[plate_id]:
+                continue
+            drift2 = plate_list[neighbors]["drift"]
+            relative_drift = np.array(drift2) - np.array(drift1) 
+            c1x,c1y = vor_seeds[plate_id]
+            c2x,c2y = vor_seeds[neighbors]
+            direction_vector = np.array([c2x - c1x, c2y - c1y])
+            norm = np.linalg.norm(direction_vector)
+            if norm == 0: continue
+            direction_vector = direction_vector / norm
+            projected_speed = np.dot(relative_drift,direction_vector) #difference of plates at the angle of the plate collision
+
+            
+            if projected_speed > 0.4: #2
+                fault_id_table[plate_id][neighbors] = 2 # CONVERGENT
+            elif projected_speed < -0.4: #-1
+                fault_id_table[plate_id][neighbors] = -2 # DIVERGENT
+            else:
+                fault_id_table[plate_id][neighbors] = 1 # OTHER... Setting it for recongition/testing
+
+    fault_map = np.zeros((size,size))
+    for row in range(size):
+        for col in range(size):
+            if is_vor_border[row][col] == 1:
+                plate1 = vor_regions[row][col]
+                for dy,dx in [[+1,0],[-1,0],[0,+1],[0,-1]]:
+                    ny,nx = dy + row,dx + col
+                    if (0<=ny<size and 0<=nx<size):
+                        plate2 = vor_regions[ny][nx]
+                        if plate1 != plate2: #FETCH THE IDENTIFICATION
+                            fault_map[row][col] = fault_id_table[plate1][plate2]
+
+
     plt.figure("Boundaries")
     plt.imshow(is_vor_border,cmap="gray",label="Boundaries")
     plt.colorbar()
     plt.title("Generated Voronoi Edges")
-    #plt.show()
+    plt.figure("FaultMap GIIGGLGLLG")
+    plt.imshow(fault_map,cmap="gray",label="Boundaries")
+    plt.colorbar()
+    plt.title("Generated Fault Map")
+    plt.show()
     return is_vor_border
-def create_tectonic_plates(vor_ID,vor_regions,size,WORLD_SEED):
+def create_tectonic_plates(vor_ID,vor_regions,size,WORLD_SEED): # returns dict of plates
     #setting random to WORLD_SEED
     rng = np.random.default_rng(WORLD_SEED)
 
@@ -368,7 +442,6 @@ def create_tectonic_plates(vor_ID,vor_regions,size,WORLD_SEED):
         tectonic_plate_dict[regions_ID] = tect_plate_info
     print(tectonic_plate_dict)
     return tectonic_plate_dict
-
 def create_fault_map(vor_ID_list, vor_regions_map, tect_plates, size, WORLD_SEED): 
     vor_obj = Voronoi(vor_ID_list)
     fault_lines_map = np.zeros((size, size), dtype=int)
@@ -425,159 +498,6 @@ def create_fault_map(vor_ID_list, vor_regions_map, tect_plates, size, WORLD_SEED
     plt.show()
 
     return fault_lines_map
-def world_by_plates(vor_ID_list,vor_regions_map,size,WORLD_SEED):
-    
-    altitude_map = np.zeros((size,size),dtype=float)
-    
-    def create_plate_adjacency(vor_points):
-        vor_object = Voronoi(vor_points)
-        ridge_points = vor_object.ridge_points
-
-        adjacency = {}
-        for a,b in ridge_points:
-            if a not in adjacency:
-                adjacency[a] = []
-            if b not in adjacency:
-                adjacency[b] = []
-            adjacency[a].append(b)
-            adjacency[b].append(a)
-        return adjacency
-    adjacency_dict = create_plate_adjacency(vor_ID_list)
-
-    tect_plates = create_tectonic_plates(vor_ID_list,vor_regions_map,size,WORLD_SEED)
-    fault_map = create_fault_map(vor_ID_list,vor_regions,tect_plates,size,WORLD_SEED)
-    def apply_noise_to_continental_plate(terrain_map,vor_ID_of_interest,vor_regions,size, WORLD_SEED): #create land noise
-        #lower at higher
-
-        # scale = zoom_level / size
-        scale = 0.01
-        world_map = terrain_map
-        rng = random.Random(WORLD_SEED)
-        row_offset = rng.uniform(0, 50)
-        col_offset = rng.uniform(0, 50)
-        for row in range(size):
-            for col in range(size):
-                if vor_regions[row][col] == vor_ID_of_interest:
-                    x = (col* scale + col_offset) 
-                    y = (row* scale + row_offset) 
-                    val = pnoise2 ( x,y,
-                                    octaves=4,
-                                    persistence=0.5,
-                                    lacunarity=2.0,
-                                    base=WORLD_SEED%256)
-                    # val = ((val + 1)/2) #normalize btw [0,1]
-
-                    world_map[row][col] += val *.4
-
-        return
-    
-
-    for rows in range(size): 
-        for cols in range(size):
-            altitude_map[rows][cols] = tect_plates[ vor_regions[rows][cols] ]["base_elevation"]
-    for plate_id,coords in enumerate(vor_ID_list):
-        #for continental plate, apply perlin noise to make into land
-        if tect_plates[plate_id]["type"] == "continental":
-            apply_noise_to_continental_plate(altitude_map,plate_id,vor_regions,size, WORLD_SEED)
-
-
-
-    colors = ["#0000FF", "#FFDAB9", "#228B22", "#A9A9A9", "#FFFFFF"]
-    bounds = [0.0, 0.2, 0.3, 0.6, 0.9, 1.0]
-    plt.figure("World Map")
-    cmap = ListedColormap(colors)
-    norm = BoundaryNorm(bounds, len(colors))
-    plt.imshow(altitude_map, cmap=cmap, norm=norm)
-    plt.colorbar()
-    plt.legend()
-    plt.title("Generated World Map By Plates")
-
-    print("Altitude range:", np.min(altitude_map), "→", np.max(altitude_map))
-    plt.figure("Debug Unclipped World")
-    colors = [
-        "#000033",  # deep ocean (< -0.4)
-        "#000080",  # mid ocean  (-0.4 to -0.2)
-        "#0077be",  # shallow ocean (-0.2 to 0)
-
-        "#f4a261",  # beach/sand (0 to 0.1)
-        "#3B9C35",  # grassy green (0.1 to 0.5)
-        "#707070",  # mountains (0.5 to 0.7)
-        "#ffffff",  # snowy peaks (0.7+)
-    ]
-    bounds = [-1.0, -0.4, -0.2, 0.0, 0.1, 0.5, 0.7, 1.0]
-    cmap = ListedColormap(colors)
-    norm = BoundaryNorm(bounds, len(colors))
-    plt.imshow(altitude_map, cmap=cmap,norm=norm)
-    plt.colorbar()
-    return altitude_map
-
-
-
-def assign_biomes(size,altitude_map,temp_map,WORLD_SEED):
-    biome_map = [ [ 0 for _ in range(size)] for _ in range(size)]
-    altitude_min = np.min(altitude_map)
-    altitude_max = np.max(altitude_map)
-    altitude_range = altitude_max-altitude_min
-
-    #WATER
-    water_threshold = (altitude_min + (altitude_range*0.4))
-    sand_threshold = (altitude_min + (altitude_range*0.44))
-    grass_threshold = (altitude_min + (altitude_range*0.80))
-    lower_Mtn_threshold = (altitude_min + (altitude_range*0.95))
-    #PEAKS
-    for row in range(size):
-        for col in range(size):
-            temperature = temp_map[row][col]
-            altitude = altitude_map[row][col]
-
-            if altitude < water_threshold: biome = "Ocean"
-            elif altitude < sand_threshold: biome = "Beach"
-            #MAIN LAND AREA
-        
-            elif altitude < grass_threshold:
-                if temperature > 0.8: biome = "Grassland"
-                elif temperature > 0.75: biome = "Forest"
-                elif temperature > 0.65: biome = "Grassland"
-                elif temperature > 0.35: biome = "Forest"
-                else:   biome = "Tundra"
-            #MOUNTAINS
-            elif altitude < lower_Mtn_threshold:
-                biome = "Mountain"
-            else:
-                biome = "Snowy Peaks" if temperature > 0.2 else "Glacier"
-            biome_map[row][col] = biome
-    return biome_map
-def display_biomes_GUI(biome_map,SEED_AS_STRING):
-    biome_colors = {
-    "Ocean": "#0077b6",
-    "Beach": "#f4a261",
-    "Grassland": "#90be6d",
-    "Tundra": "#c0d6c1",
-    "Forest": "#2a9d8f",
-    "Mountain": "#8d99ae",
-    "Glacier": "#bde0fe",
-    "Snowy Peaks": "#F4E9E9"
-}
-
-    biome_list = list(biome_colors)   
-    color_list = list(biome_colors.values())
-
-    biome_to_integer = {biome: i for i, biome in enumerate(biome_list)}
-    int_map = np.array([[biome_to_integer[biome] for biome in row] for row in biome_map]) #using integer casted values, recreate biome map with integer ID instead of String
-    
-    #assigns colors to the boundary values
-    cmap = ListedColormap(color_list)
-    norm = BoundaryNorm(boundaries=np.arange(len(biome_list)+1)-0.5, ncolors=len(biome_list))
-
-    plt.figure(figsize=(10, 10))
-    img = plt.imshow(int_map, cmap=cmap, norm=norm, interpolation='nearest')
-    cbar = plt.colorbar(img, ticks=np.arange(len(biome_list)))
-    cbar.ax.set_yticklabels(biome_list)
-    cbar.set_label("Biome Type")
-    plt.title("Biome Map")
-    plt.axis("off")
-   # plt.show()
-    return
 
 
 
@@ -606,7 +526,6 @@ def main():
     WORLD_HEIGHT = 1.0
     alt_map = create_altitude_map(WORLD_SIZE,WORLD_SEED % 256) #currently making smaller for pnoise to handle ... 100,000 unique worlds 
     temp_map = create_temp_map(WORLD_SIZE,alt_map,WORLD_SEED)
-    biome_map = assign_biomes(WORLD_SIZE,alt_map,temp_map,WORLD_SEED)
     #DISPLAY
     display_world_GUI(alt_map,seedAsString)
     # display_biomes_GUI(biome_map,seedAsString)
@@ -629,8 +548,8 @@ print(f"Seed: {seedAsString} ({WORLD_SEED})")
 size = 256
 
 seeds,vor_regions = Voronoi_seeding(size,0.00025,WORLD_SEED)
-identify_border_cells(vor_regions,size)
-plates = create_tectonic_plates(seeds,vor_regions,size,WORLD_SEED)
-world = world_by_plates(seeds,vor_regions,size,WORLD_SEED)
 
+plates = create_tectonic_plates(seeds,vor_regions,size,WORLD_SEED)
+identify_border_cells(size,vor_regions,plates,seeds)
+altitude = create_altitude_map(size,vor_regions,WORLD_SEED)
 plt.show()
