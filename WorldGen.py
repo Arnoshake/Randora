@@ -19,23 +19,8 @@ from skimage.draw import line
 #FAULT LINE FALL OFF FOR TERRAIN
 from scipy.ndimage import distance_transform_edt
 
-print(noise.pnoise2(0.5, 0.5))
-def seed_from_string(s):
-    # Convert the string into a 32-bit integer using SHA-256
-    # whatever string inputted will always return the same randomized seed
-    return int(hashlib.sha256(s.encode()).hexdigest(), 16) % (2**32)
-    # USAGE:
-    #   seed = seed_from_string("BananasApplesHotDogWatermelon")
-    #   random.seed(seed)
-    #   print(random.randint(0, 100)) WILL ALWAYS RETURN THE SAME NUMBER PER STRING
-def create_seed():
-    seed = ""
-    trueRandom = random.SystemRandom()
-    random_number = trueRandom.randint(1,10)
-    for _ in range(random_number):
-        seed += trueRandom.choice(nltk_words.words()).capitalize()
-    return seed
 
+# DISPLAY
 def write_world_to_file(seed_as_string,world_map,file_name,print_type):
     
     
@@ -116,9 +101,8 @@ def display_world_GUI(world_map,SEED_AS_STRING):
     print(vmin, " ",vmax)
     water_threshold = (vmin + (vrange*0.4))
     sand_threshold = (vmin + (vrange*0.44))
-    grass_threshold = (vmin + (vrange*0.80))
-    forest_theshold = (vmin + (vrange*0.90))
-    lower_Mtn_threshold = (vmin + (vrange*0.95))
+    grass_threshold = (vmin + (vrange*0.6))
+    lower_Mtn_threshold = (vmin + (vrange*0.9))
 
     bounds = [vmin, water_threshold, sand_threshold, grass_threshold,lower_Mtn_threshold, vmax]  # strictly increasing!
 
@@ -197,97 +181,28 @@ def display_world_GUI(world_map,SEED_AS_STRING):
     # plt.show()
     return
 
-def create_altitude_map(size, plate_list,plate_map,is_vor_border_map,fault_lines_map, WORLD_SEED): #create land noise
-    zoom_level = 4.0 # you can tweak this higher/lower
+# SEEDING
+def seed_from_string(s):
+    # Convert the string into a 32-bit integer using SHA-256
+    # whatever string inputted will always return the same randomized seed
+    return int(hashlib.sha256(s.encode()).hexdigest(), 16) % (2**32)
+    # USAGE:
+    #   seed = seed_from_string("BananasApplesHotDogWatermelon")
+    #   random.seed(seed)
+    #   print(random.randint(0, 100)) WILL ALWAYS RETURN THE SAME NUMBER PER STRING
+def create_seed():
+    seed = ""
+    trueRandom = random.SystemRandom()
+    random_number = trueRandom.randint(1,10)
+    for _ in range(random_number):
+        seed += trueRandom.choice(nltk_words.words()).capitalize()
+    return seed
 
-    #lower at higher
-    scale = zoom_level / size
-    rng = random.Random(WORLD_SEED)
-    # scale = zoom_level / size
-
-    #ASSIGN PLATES A BIAS AND RUGGEDNESS
-    altitude_map = np.zeros((size,size))
-   
-    plate_type_mask = np.zeros((size, size)) #1 = ocean
-   #BASE BlANKET OF NOISE
-    row_offset = rng.uniform(0, 50)
-    col_offset = rng.uniform(0, 50)
-    for row in range(size):
-        for col in range(size):
-            
-
-            nx = ((col)* scale + col_offset) 
-            ny = ((row)* scale + row_offset) 
-            pval = pnoise2 ( ny,nx,
-                            octaves=4,
-                            persistence=0.5,
-                            lacunarity=2.0,
-                            base=WORLD_SEED%256)
-            altitude = (pval + 1)/2.0 #normalize btw [0,1]
-            altitude_map[row][col] = altitude
-
-    shore_mask = np.zeros((size, size))
-    for row in range(1,size-1):
-        for col in range(1,size-1):
-            current = plate_type_mask[row][col]
-            neighbors = [
-                plate_type_mask[row+1][col],
-                plate_type_mask[row-1][col],
-                plate_type_mask[row][col+1],
-                plate_type_mask[row][col-1],
-            ]
-            if any(n != current for n in neighbors):
-                shore_mask[row][col] = 1
-    
-    # FAULT EFFECTS
-    adjusted_map = np.copy(altitude_map)
-    falloff, magnitude = 5.0, 3.0
-
-    convergent_mask = (fault_lines_map == 2).astype(float)
-    dist_conv = distance_transform_edt(1 - convergent_mask)
-    # Get current terrain base
-    base = np.copy(altitude_map)
-
-    # Faults raise elevation: blend fault height (1.0) with Perlin terrain
-    conv_weight = np.exp(-dist_conv / 3)
-    adjusted_map = base * (1 - conv_weight) + 1.0 * conv_weight
-
-    divergent_mask = (fault_lines_map == -2).astype(float)
-    dist_div = distance_transform_edt(1 - divergent_mask)
-    adjusted_map -= np.exp(-dist_div / falloff) * magnitude
-
-    adjusted_map = np.clip(adjusted_map, 0.0, 1.0)
-
-    # COLOR DISPLAY
-    bounds = [0.0, 0.4, 0.435, 0.6, 0.9, 1.0]
-
-    colors = [
-        '#1f4e79',  # Deep water
-        '#e0c074',  # Sand
-        '#5cb85c',  # Grass
-        '#888888',  # Mountains
-        '#ffffff'   # Peaks
-    ]
-    terrain_cmap = ListedColormap(colors)
-    terrain_norm = BoundaryNorm(bounds, terrain_cmap.N)
-    
-    plt.figure("Elevation Map")
-    plt.imshow(adjusted_map, cmap=terrain_cmap, norm=terrain_norm)
-    plt.colorbar(boundaries=bounds)
-    plt.axis('off')
-    plt.title("Final Terrain")
-
-
-    min_val = min(min(row) for row in altitude_map)
-    max_val = max(max(row) for row in altitude_map)
-    # print (f"MIN: {min_val} MAX: {max_val}")
-    return adjusted_map
-    
-
+# TECTONIC PLATES
 #Vor_regions = 2D Arr holding plate identity
 def Voronoi_seeding(size,seed_density,WORLD_SEED):
     rng = random.Random(WORLD_SEED)
-    num_seeds = int((size**2) * seed_density)
+    num_seeds = max(int((size**2) * seed_density),4) #Vor requires 4 seeds minimum
     vor_points = [[rng.uniform(0, size), rng.uniform(0, size)] for _ in range(num_seeds)]
 
     vor_points = np.array(vor_points,dtype=float) #converting to NumPy array (for [:,0] & [:,1])
@@ -481,8 +396,135 @@ def create_fault_map(vor_ID_list, vor_regions_map, tect_plates, size, WORLD_SEED
 
     return fault_lines_map
 
+# MAP GENERATION
+def create_altitude_map(size, plate_list,plate_map,is_vor_border_map,fault_lines_map, WORLD_SEED): #create land noise
+    zoom_level = 4.0 # you can tweak this higher/lower
 
-# Testing World Seed Generation
+    #lower at higher
+    scale = zoom_level / size
+    rng = random.Random(WORLD_SEED)
+    # scale = zoom_level / size
+
+    #ASSIGN PLATES A BIAS AND RUGGEDNESS
+    altitude_map = np.zeros((size,size))
+   
+    plate_type_mask = np.zeros((size, size)) #1 = ocean
+   #BASE BlANKET OF NOISE
+    row_offset = rng.uniform(0, 50)
+    col_offset = rng.uniform(0, 50)
+    for row in range(size):
+        for col in range(size):
+            
+
+            nx = ((col)* scale + col_offset) 
+            ny = ((row)* scale + row_offset) 
+            pval = pnoise2 ( ny,nx,
+                            octaves=4,
+                            persistence=0.5,
+                            lacunarity=2.0,
+                            base=WORLD_SEED%256)
+            altitude = (pval + 1)/2.0 #normalize btw [0,1]
+            altitude_map[row][col] = altitude
+
+    shore_mask = np.zeros((size, size))
+    for row in range(1,size-1):
+        for col in range(1,size-1):
+            current = plate_type_mask[row][col]
+            neighbors = [
+                plate_type_mask[row+1][col],
+                plate_type_mask[row-1][col],
+                plate_type_mask[row][col+1],
+                plate_type_mask[row][col-1],
+            ]
+            if any(n != current for n in neighbors):
+                shore_mask[row][col] = 1
+    
+    # FAULT EFFECTS
+    adjusted_map = np.copy(altitude_map)
+    falloff, magnitude = 5.0, 3.0
+
+    convergent_mask = (fault_lines_map == 2).astype(float)
+    dist_conv = distance_transform_edt(1 - convergent_mask)
+    # Get current terrain base
+    base = np.copy(altitude_map)
+
+    # Faults raise elevation: blend fault height (1.0) with Perlin terrain
+    conv_weight = np.exp(-dist_conv / 3)
+    adjusted_map = base * (1 - conv_weight) + 1.0 * conv_weight
+
+    divergent_mask = (fault_lines_map == -2).astype(float)
+    dist_div = distance_transform_edt(1 - divergent_mask)
+    adjusted_map -= np.exp(-dist_div / falloff) * magnitude
+
+    adjusted_map = np.clip(adjusted_map, 0.0, 1.0)
+
+    # COLOR DISPLAY
+    temp = determine_temp_of_map(WORLD_SEED)
+    print(f"Requested colormap climate key: '{temp}'")
+
+    bounds = [0.0, 0.4, 0.435, 0.6, 0.9, 1.0]
+    colors = {}
+    colors["cold"] = {
+    "ocean": "#1B3B6F",           # Deep arctic blue
+    "sand": "#E1D9D1",            # Pale icy shoreline
+    "grass": "#A0C4B0",           # Cold tundra green
+    "lower_mountain": "#8B9DA6",  # Frosted slate gray
+    "peak": "#FFFFFF"             # Snowy peak white
+    }   
+    colors["mild"] = {
+    "ocean": "#2E8BC0",           # Calm ocean blue
+    "sand": "#F2E2C4",            # Warm beige sand
+    "grass": "#7BC47F",           # Lush green plains
+    "lower_mountain": "#A9A9A9",  # Granite gray
+    "peak": "#FFFFFF"             # Snow-capped white
+}
+
+    # 🔥 Hot Climate Colors
+    colors["hot"] = {
+        "ocean": "#005C5C",           # Warm tropical sea
+        "sand": "#E0B084",            # Desert sand
+        "grass": "#C2B280",           # Dry savanna grass
+        "lower_mountain": "#A0522D",  # Reddish-brown rock
+        "peak": "#FFFAF0"             # Sun-bleached summit
+    }
+
+    # colors = [
+    #     '#1f4e79',  # Deep water
+    #     '#e0c074',  # Sand
+    #     '#5cb85c',  # Grass
+    #     '#888888',  # Mountains
+    #     '#ffffff'   # Peaks
+    # ]
+    terrain_cmap = ListedColormap([
+    colors[temp]["ocean"],
+    colors[temp]["sand"],
+    colors[temp]["grass"],
+    colors[temp]["lower_mountain"],
+    colors[temp]["peak"]
+])
+
+    terrain_norm = BoundaryNorm(bounds, terrain_cmap.N)
+    
+    plt.figure("Elevation Map")
+    plt.imshow(adjusted_map, cmap=terrain_cmap, norm=terrain_norm)
+    plt.colorbar(boundaries=bounds)
+    plt.axis('off')
+    plt.title("Final Terrain")
+
+
+    min_val = min(min(row) for row in altitude_map)
+    max_val = max(max(row) for row in altitude_map)
+    # print (f"MIN: {min_val} MAX: {max_val}")
+    return adjusted_map
+def determine_temp_of_map(WORLD_SEED):
+    rng = random.Random(WORLD_SEED)
+    val = rng.uniform(0,101)
+    temp = ""
+    if val < 0.33: temp = "cold"
+    elif val < 0.66: temp = "mild"
+    else: temp = "hot"
+    return temp
+
 
 # seedAsString = input("Enter a World Seed: ")
 def main():
@@ -494,35 +536,20 @@ def main():
     random.seed(WORLD_SEED)
 
     print(f"Seed: {seedAsString} ({WORLD_SEED})")
-    print(random.randint(0, 100))  # Will always be the same for "bananas"
     #WORLD GENERATION
-    WORLD_SIZE = 512*2
-    WORLD_HEIGHT = 1.0
-    alt_map = create_altitude_map(WORLD_SIZE,WORLD_SEED % 256) #currently making smaller for pnoise to handle ... 100,000 unique worlds 
+    WORLD_SIZE = 128
+    seeds,vor_regions = Voronoi_seeding(WORLD_SIZE,0.00010,WORLD_SEED)
+    plates = create_tectonic_plates(seeds,vor_regions,WORLD_SIZE,WORLD_SEED)
+    is_vor_border,fault_lines = create_fault_lines(WORLD_SIZE,vor_regions,plates,seeds)
+    altitude = create_altitude_map(WORLD_SIZE,plates,vor_regions,is_vor_border,fault_lines,WORLD_SEED)
+    display_world_GUI(altitude,WORLD_SEED)
+    plt.show()
+    return
+
+main()
     
-    #DISPLAY
-    display_world_GUI(alt_map,seedAsString)
-    # display_biomes_GUI(biome_map,seedAsString)
-
-    write_world_to_file(seedAsString,alt_map,"mapSymbol","symbol")
-    write_world_to_file(seedAsString,alt_map,"mapValue","value")
 
 
-    # COLOR PIXELS MAP
-    # display_world_GUI(world_map)
 
-print("Starting Program...")
 
-#SEED GENERATION
-seedAsString = create_seed()
-WORLD_SEED = seed_from_string(seedAsString)
-random.seed(WORLD_SEED)
-print(f"Seed: {seedAsString} ({WORLD_SEED})")
 
-size = 256
-
-seeds,vor_regions = Voronoi_seeding(size,0.00010,WORLD_SEED)
-plates = create_tectonic_plates(seeds,vor_regions,size,WORLD_SEED)
-is_vor_border,fault_lines = create_fault_lines(size,vor_regions,plates,seeds)
-altitude = create_altitude_map(size,plates,vor_regions,is_vor_border,fault_lines,WORLD_SEED)
-plt.show()
