@@ -396,6 +396,32 @@ def create_fault_map(vor_ID_list, vor_regions_map, tect_plates, size, WORLD_SEED
     # plt.show()
 
     return fault_lines_map
+def populate_resources(fault_lines_map,size,temp_type):
+    resources_dict = {
+        0: "Stone",
+        1: "Wood",
+        2: "Salt",
+        3: "Coal",
+        4: "Iron",
+        5: "Gold", 
+        6: "Grain",
+    } 
+    resources_rarity = {
+        "Stone" : 0.8,
+        "Wood" : 0.8,
+        "Salt" : 0.4,
+        "Coal" : 0.5,
+        "Iron" : 0.6,
+        "Gold" : 0.2,
+        "Grain" : 0.9,
+
+    }
+    for row in range(size):
+        for col in range(col):
+            if fault_lines_map[row][col] != 0: #FAULT FOUND
+                print("Placeholder")
+    return 0
+                
 
 # MAP GENERATION
 def create_altitude_map(size, plate_list,plate_map,is_vor_border_map,fault_lines_map, WORLD_SEED): #create land noise
@@ -641,17 +667,24 @@ def main():
     print(f"Seed: {seedAsString} ({WORLD_SEED})")
     #WORLD GENERATION
     WORLD_SIZE = 100
+    #PLATE GENERATION
     seeds,vor_regions = Voronoi_seeding(WORLD_SIZE,0.00010,WORLD_SEED)
     plates = create_tectonic_plates(seeds,vor_regions,WORLD_SIZE,WORLD_SEED)
     is_vor_border,fault_lines = create_fault_lines(WORLD_SIZE,vor_regions,plates,seeds)
+    #MAP CREATION
     altitude = create_altitude_map(WORLD_SIZE,plates,vor_regions,is_vor_border,fault_lines,WORLD_SEED)
     temp_type, temperature = create_temp_map(WORLD_SIZE,WORLD_SEED)
     Display_Interactive_Maps(altitude,temperature,temp_type,WORLD_SIZE,WORLD_SEED,seedAsString)
+
     plt.show()
+
+
+
     return
 
-print("RUNNING FILE")
+print("RUNNING PROGRAM...")
 main()
+print("PROGRAM FINISHING...")
 
     
 
