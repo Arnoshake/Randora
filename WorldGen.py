@@ -206,14 +206,14 @@ def Voronoi_seeding(size,seed_density,WORLD_SEED):
     vor_points = [[rng.uniform(0, size), rng.uniform(0, size)] for _ in range(num_seeds)]
 
     vor_points = np.array(vor_points,dtype=float) #converting to NumPy array (for [:,0] & [:,1])
-    plt.scatter(vor_points[:,0],vor_points[:,1])
+    # plt.scatter(vor_points[:,0],vor_points[:,1])
     if len(vor_points) == 0: print("No seed points generated")
     if len(vor_points > 3):
         vor_object = Voronoi(vor_points)
         vor_vertices = vor_object.vertices
         vor_regions = vor_object.regions
-        voronoi_plot_2d(vor_object,show_vertices=False,line_colors = 'blue')
-    plt.title("Voronoi Seeding")
+        # voronoi_plot_2d(vor_object,show_vertices=False,line_colors = 'blue')
+    # plt.title("Voronoi Seeding")
 
     vor_regions = np.zeros((size, size), dtype=int)
 
@@ -229,10 +229,10 @@ def Voronoi_seeding(size,seed_density,WORLD_SEED):
                     min_ID = ID
             vor_regions[row][col] = min_ID
 
-    plt.figure("Region")
-    plt.imshow(vor_regions,cmap="gray",label="Regions")
-    plt.colorbar()
-    plt.title("Generated Voronoi Regions")
+    # plt.figure("Region")
+    # plt.imshow(vor_regions,cmap="gray",label="Regions")
+    # plt.colorbar()
+    # plt.title("Generated Voronoi Regions")
     
     return vor_points,vor_regions
 def create_fault_lines(size, vor_regions,plate_list,vor_seeds): #returns binary value map of borders 
@@ -301,11 +301,12 @@ def create_fault_lines(size, vor_regions,plate_list,vor_seeds): #returns binary 
                             fault_map[row][col] = fault_id_table[plate1][plate2]
 
 
-    plt.figure("Boundaries")
-    plt.imshow(is_vor_border,cmap="gray",label="Boundaries")
-    plt.colorbar()
-    plt.title("Generated Voronoi Edges")
-    plt.figure("FaultMap GIIGGLGLLG")
+    # plt.figure("Boundaries")
+    # plt.imshow(is_vor_border,cmap="gray",label="Boundaries")
+    # plt.colorbar()
+    # plt.title("Generated Voronoi Edges")
+
+    plt.figure("FaultMap ")
     plt.imshow(fault_map,cmap="gray",label="Boundaries")
     plt.colorbar()
     plt.title("Generated Fault Map")
@@ -426,18 +427,7 @@ def create_altitude_map(size, plate_list,plate_map,is_vor_border_map,fault_lines
             altitude = (pval + 1)/2.0 #normalize btw [0,1]
             altitude_map[row][col] = altitude
 
-    shore_mask = np.zeros((size, size))
-    for row in range(1,size-1):
-        for col in range(1,size-1):
-            current = plate_type_mask[row][col]
-            neighbors = [
-                plate_type_mask[row+1][col],
-                plate_type_mask[row-1][col],
-                plate_type_mask[row][col+1],
-                plate_type_mask[row][col-1],
-            ]
-            if any(n != current for n in neighbors):
-                shore_mask[row][col] = 1
+    
     
     # FAULT EFFECTS
     adjusted_map = np.copy(altitude_map)
@@ -458,8 +448,13 @@ def create_altitude_map(size, plate_list,plate_map,is_vor_border_map,fault_lines
 
     adjusted_map = np.clip(adjusted_map, 0.0, 1.0)
 
+    min_val = min(min(row) for row in altitude_map)
+    max_val = max(max(row) for row in altitude_map)
+    # print (f"MIN: {min_val} MAX: {max_val}")
+    return adjusted_map
+def Display_Interactive_Maps(altitude_map,temperature_map,temp_type,size,WORLD_SEED,SEED_AS_STRING):
     # COLOR DISPLAY
-    temp = determine_temp_of_map(WORLD_SEED)
+    temp = temp_type
     print(f"Requested colormap climate key: '{temp}'")
 
     bounds = [0.0, 0.4, 0.435, 0.6, 0.9, 1.0]
@@ -478,8 +473,6 @@ def create_altitude_map(size, plate_list,plate_map,is_vor_border_map,fault_lines
     "lower_mountain": "#A9A9A9",  # Granite gray
     "peak": "#FFFFFF"             # Snow-capped white
 }
-
-    # 🔥 Hot Climate Colors
     colors["hot"] = {
         "ocean": "#005C5C",           # Warm tropical sea
         "sand": "#E0B084",            # Desert sand
@@ -505,26 +498,136 @@ def create_altitude_map(size, plate_list,plate_map,is_vor_border_map,fault_lines
 
     terrain_norm = BoundaryNorm(bounds, terrain_cmap.N)
     
-    plt.figure("Elevation Map")
-    plt.imshow(adjusted_map, cmap=terrain_cmap, norm=terrain_norm)
-    plt.colorbar(boundaries=bounds)
+    colors = [
+        "#0000cc",   # Blue for < 0
+        "#C2B280",   # tan
+        "#228B22",   # Green
+        "#707070",   # Gray
+        "#ffffff"    # White
+    ]
+
+    # Create colormap and norm
+    cmap_altitude = ListedColormap(colors)
+    fig1, ax1 = plt.subplots()
+    img1 = ax1.imshow(altitude_map, cmap=cmap_altitude, norm=terrain_norm)
+    cbar1 = plt.colorbar(img1, boundaries=bounds)
     plt.axis('off')
-    plt.title("Final Terrain")
+    cbar1.set_label("Elevation")
+    zoom_radius1 = 30
+    center_x1, center_y1 = size // 2, size // 2
+
+    def update_view_1():
+        ax1.set_xlim(center_x1 - zoom_radius1, center_x1 + zoom_radius1)
+        ax1.set_ylim(center_y1 + zoom_radius1, center_y1 - zoom_radius1)
+        fig1.canvas.draw_idle()
+
+    def on_key_1(event):
+        nonlocal center_x1, center_y1, zoom_radius1
+        step = 5
+        zoom_step = 5
+        if event.key == 'left': center_x1 -= step
+        elif event.key == 'right': center_x1 += step
+        elif event.key == 'up': center_y1 -= step
+        elif event.key == 'down': center_y1 += step
+        elif event.key in ('+', '='): zoom_radius1 = max(5, zoom_radius1 - zoom_step)
+        elif event.key == '-': zoom_radius1 = min(size // 2, zoom_radius1 + zoom_step)
+        center_x1 = max(zoom_radius1, min(center_x1, size - zoom_radius1))
+        center_y1 = max(zoom_radius1, min(center_y1, size - zoom_radius1))
+        update_view_1()
+
+    fig1.canvas.mpl_connect('key_press_event', on_key_1)
+    ax1.set_title(f"[ELEVATION] World: {SEED_AS_STRING}")
+    update_view_1()
 
 
-    min_val = min(min(row) for row in altitude_map)
-    max_val = max(max(row) for row in altitude_map)
-    # print (f"MIN: {min_val} MAX: {max_val}")
-    return adjusted_map
-def determine_temp_of_map(WORLD_SEED):
+    fig2, ax2 = plt.subplots()
+    img2 = ax2.imshow(altitude_map, cmap=terrain_cmap, norm=terrain_norm)
+    cbar2 = plt.colorbar(img2, boundaries=bounds)
+    plt.axis('off')
+    cbar2.set_label("Temperature")
+    zoom_radius2 = 30
+    center_x2, center_y2 = size // 2, size // 2
+
+    def update_view_2():
+        ax2.set_xlim(center_x2 - zoom_radius2, center_x2 + zoom_radius2)
+        ax2.set_ylim(center_y2 + zoom_radius2, center_y2 - zoom_radius2)
+        fig2.canvas.draw_idle()
+
+    def on_key_2(event):
+        nonlocal center_x2, center_y2, zoom_radius2
+        step = 5
+        zoom_step = 5
+        if event.key == 'left': center_x2 -= step
+        elif event.key == 'right': center_x2 += step
+        elif event.key == 'up': center_y2 -= step
+        elif event.key == 'down': center_y2 += step
+        elif event.key in ('+', '='): zoom_radius2 = max(5, zoom_radius2 - zoom_step)
+        elif event.key == '-': zoom_radius2 = min(size // 2, zoom_radius2 + zoom_step)
+        center_x2 = max(zoom_radius2, min(center_x2, size - zoom_radius2))
+        center_y2 = max(zoom_radius2, min(center_y2, size - zoom_radius2))
+        update_view_2()
+
+    fig2.canvas.mpl_connect('key_press_event', on_key_2)
+    ax2.set_title(f"[TEMPERATURE] World: {SEED_AS_STRING}")
+    update_view_2()
+
+    # Raise windows
+    try:
+        fig1.canvas.manager.window.activateWindow()
+        fig1.canvas.manager.window.raise_()
+        fig2.canvas.manager.window.activateWindow()
+        fig2.canvas.manager.window.raise_()
+    except:
+        pass
+def create_temp_map(size,WORLD_SEED):
+    
     rng = random.Random(WORLD_SEED)
     val = rng.uniform(0,101)
     temp = ""
-    if val < 0.33: temp = "cold"
-    elif val < 0.66: temp = "mild"
-    else: temp = "hot"
-    return temp
+    base_val = 0
+    if val < 33: 
+        temp = "cold"
+    elif val < 66: 
+        temp = "mild"
 
+    else: 
+        temp = "hot"
+    max_temp = val
+    temp_map = np.zeros((size,size))
+    print(temp)
+    #NOISE GENERATION
+    zoom_level = 4.0 # you can tweak this higher/lower
+    #lower at higher
+    scale = zoom_level / size
+    row_offset = rng.uniform(0, 50)
+    col_offset = rng.uniform(0, 50)
+    for row in range(size):
+        for col in range(size):
+            distance = np.sqrt(row**2 + col**2)
+            max_distance = np.sqrt((size-1)**2 + (size-1)**2)
+            normalized_distance = distance / max_distance
+
+            temperature = max_temp * (1 - normalized_distance)
+
+            temp_map[row][col] = temperature
+    add_perlin_noise(temp_map,scale,5,WORLD_SEED)
+    temp_map = np.clip(temp_map, 0, None)  # Remove negatives
+    temp_map = (temp_map - np.min(temp_map)) / (np.max(temp_map) - np.min(temp_map))
+
+    # plt.figure("Temperature")
+    # plt.imshow(temp_map,"gray")
+
+    return temp, temp_map
+def add_perlin_noise(temp_map, scale=0.1, amplitude=5, seed=0): # CHAT GPT'D
+    height, width = temp_map.shape
+    noisy_temp = np.copy(temp_map)
+    for row in range(height):
+        for col in range(width):
+            nx = row * scale
+            ny = col * scale
+            noise_val = pnoise2(nx, ny, octaves=4, base = seed % (2**31))  # safe for pnoise2)
+            noisy_temp[row, col] += amplitude * noise_val
+    return noisy_temp
 
 # seedAsString = input("Enter a World Seed: ")
 def main():
@@ -537,16 +640,19 @@ def main():
 
     print(f"Seed: {seedAsString} ({WORLD_SEED})")
     #WORLD GENERATION
-    WORLD_SIZE = 128
+    WORLD_SIZE = 100
     seeds,vor_regions = Voronoi_seeding(WORLD_SIZE,0.00010,WORLD_SEED)
     plates = create_tectonic_plates(seeds,vor_regions,WORLD_SIZE,WORLD_SEED)
     is_vor_border,fault_lines = create_fault_lines(WORLD_SIZE,vor_regions,plates,seeds)
     altitude = create_altitude_map(WORLD_SIZE,plates,vor_regions,is_vor_border,fault_lines,WORLD_SEED)
-    display_world_GUI(altitude,WORLD_SEED)
+    temp_type, temperature = create_temp_map(WORLD_SIZE,WORLD_SEED)
+    Display_Interactive_Maps(altitude,temperature,temp_type,WORLD_SIZE,WORLD_SEED,seedAsString)
     plt.show()
     return
 
+print("RUNNING FILE")
 main()
+
     
 
 
