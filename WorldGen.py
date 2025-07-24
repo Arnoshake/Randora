@@ -283,7 +283,7 @@ def create_fault_lines(size, vor_regions,plate_list,vor_seeds): #returns binary 
             
             if projected_speed > 0.4: #2
                 fault_id_table[plate_id][neighbors] = 2 # CONVERGENT
-            elif projected_speed < -0.4: #-1
+            elif projected_speed < -0.4: #-2
                 fault_id_table[plate_id][neighbors] = -2 # DIVERGENT
             else:
                 fault_id_table[plate_id][neighbors] = 1 # OTHER... Setting it for recongition/testing
@@ -397,7 +397,9 @@ def create_fault_map(vor_ID_list, vor_regions_map, tect_plates, size, WORLD_SEED
 
     return fault_lines_map
 def populate_resources(altitude_map,fault_lines_map,size,temp_type, water_threshold,mtn_threshold,WORLD_SEED):
-    
+    #2 = converge
+    #-2 = diverge
+    #1 = other faultlines
 
     
     resource_map = np.zeros((size,size))
@@ -412,20 +414,19 @@ def populate_resources(altitude_map,fault_lines_map,size,temp_type, water_thresh
         7: "Oil",
         8: "Stone",
     } 
-    
     resources_rarity = {
-        "None" : 2, #this determines density of resources in map
-        "Stone" : 0.8,
+        "None" : 1, #this determines density of resources in map
+        "Stone" : 0.0,
         "Wood" : 0.8,
         "Salt" : 0, #it will be manually raised then lowered for ocean tiles
-        "Coal" : 0.5,
-        "Iron" : 0.6,
-        "Gold" : 0.2,
+        "Coal" : 0.1,
+        "Iron" : 0.1,
+        "Gold" : 0.1,
         "Grain" : 0.9,
-        "Oil" : 0.4
+        "Oil" : 0.1
     }
-    mtn_resources_rarity = {
-        "None" : 2, #this determines density of resources in map
+    con_resources_rarity = {
+        "None" : 1, #this determines density of resources in map
         "Stone" : 0.8,
         "Wood" : 0.05,
         "Salt" : 0, #it will be manually raised then lowered for ocean tiles
@@ -435,8 +436,8 @@ def populate_resources(altitude_map,fault_lines_map,size,temp_type, water_thresh
         "Grain" : 0,
         "Oil" : 0.2
     }
-    wtr_resources_rarity = {
-        "None" : 2, #this determines density of resources in map
+    div_resources_rarity = {
+        "None" : 1, #this determines density of resources in map
         "Stone" : 0.8,
         "Wood" : 0.0,
         "Salt" : 0.5, #it will be manually raised then lowered for ocean tiles
@@ -444,70 +445,131 @@ def populate_resources(altitude_map,fault_lines_map,size,temp_type, water_thresh
         "Iron" : 0.6,
         "Gold" : 0.2,
         "Grain" : 0,
-        "Oil" : 0.4
+        "Oil" : 0.8
+    }
+    tran_resources_rarity = {
+        "None" : 1, #this determines density of resources in map
+        "Stone" : 0.0,
+        "Wood" : 0.0,
+        "Salt" : 0, #it will be manually raised then lowered for ocean tiles
+        "Coal" : 0.7,
+        "Iron" : 0.6,
+        "Gold" : 0.3,
+        "Grain" : 0.0,
+        "Oil" : 0.6
+    }
+    wtr_resources_rarity = {
+    
+        "None" : 2, #this determines density of resources in map
+        "Stone" : 0.0,
+        "Wood" : 0.0,
+        "Salt" : 0.9, #it will be manually raised then lowered for ocean tiles
+        "Coal" : 0,
+        "Iron" : 0,
+        "Gold" : 0,
+        "Grain" : 0.0,
+        "Oil" : 0.6
+
     }
     resource_types = list(resources_rarity.keys())
     
     if temp_type == "hot":
-        wtr_resources_rarity["Salt"] += 0.2
-        mtn_resources_rarity["Salt"] += 0.2
-        resources_rarity["Salt"] += 0.2
+        con_resources_rarity["Salt"] += 0.2
+        div_resources_rarity["Salt"] += 0.2
+        tran_resources_rarity["Salt"] += 0.2
 
-        wtr_resources_rarity["Oil"] += 0.2
-        mtn_resources_rarity["Oil"] += 0.2
-        resources_rarity["Oil"] += 0.2
+        con_resources_rarity["Oil"] += 0.2
+        div_resources_rarity["Oil"] += 0.2
+        tran_resources_rarity["Oil"] += 0.2
 
-        mtn_resources_rarity["Gold"] += 0.1
+        con_resources_rarity["Gold"] += 0.1
 
     random.seed(WORLD_SEED)
     rng = random.random()
-    threshold = 0.4
-    convergent_mask = (fault_lines_map != 0  ).astype(float)
-    dist_conv = distance_transform_edt(1 - convergent_mask) # map of float that indicates distance from fault
-    plt.figure("Distance from Fault Map")
-    plt.imshow(dist_conv, cmap="gray")
-    plt.title("Distance from fault map")
-    plt.colorbar()
+    threshold = 10
+    convergent_mask = (fault_lines_map == 2  ).astype(float)
+    dist_div = distance_transform_edt(1 - convergent_mask) # map of float that indicates distance from fault
+    divergent_mask = (fault_lines_map == -2  ).astype(float)
+    dist_conv = distance_transform_edt(1 - divergent_mask) # map of float that indicates distance from fault
+    transform_mask = (fault_lines_map == 1  ).astype(float)
+    dist_tran = distance_transform_edt(1 - transform_mask) # map of float that indicates distance from fault
+   
     
     weights = list(resources_rarity.values())   
-    mtn_weights = list(mtn_resources_rarity.values())   
+    con_weights = list(con_resources_rarity.values())   
+    div_weights = list(div_resources_rarity.values())  
+    tran_weights = list(tran_resources_rarity.values())  
     wtr_weights = list(wtr_resources_rarity.values())  
 
-    indices = np.argwhere(dist_conv > threshold)
-    for y,x in indices:
-        if altitude_map[x][y] <= water_threshold + 0.05: #salt can be included
-        
+    conv_indices = np.argwhere(dist_conv < threshold)
+
+    used_mask = np.zeros((size, size), dtype=bool)
+    for y,x in conv_indices:
+        resource_at_tile = 0
+        if altitude_map[x][y] <= water_threshold:
             resource_at_tile = random.choices(resource_types, weights=wtr_weights, k=1)[0]
-            
-        elif altitude_map[x][y] >= mtn_threshold:
-            resource_at_tile = random.choices(resource_types, weights= mtn_weights, k=1)[0]
         else:
-            resource_at_tile = random.choices(resource_types, weights=weights, k=1)[0]
+            resource_at_tile = random.choices(resource_types, weights=con_weights, k=1)[0]  
+
         resource_ID = key = next((k for k, v in resources_dict.items() if v == resource_at_tile), None)
         resource_map[x][y] = resource_ID
+        used_mask[x][y] = True
+    div_indices = np.argwhere(dist_div < threshold)
+    for y,x in div_indices:
+        resource_at_tile = 0
+        if altitude_map[x][y] <= water_threshold:
+            resource_at_tile = random.choices(resource_types, weights=wtr_weights, k=1)[0]
+        else:
+            resource_at_tile = random.choices(resource_types, weights=div_weights, k=1)[0] 
+        resource_ID = key = next((k for k, v in resources_dict.items() if v == resource_at_tile), None)
+        resource_map[x][y] = resource_ID
+        used_mask[x][y] = True
+    tran_indices = np.argwhere(dist_tran < threshold)
+    for y,x in tran_indices:
+        resource_at_tile = 0
+        if altitude_map[x][y] <= water_threshold:
+            resource_at_tile = random.choices(resource_types, weights=wtr_weights, k=1)[0]
+        else:
+            resource_at_tile = random.choices(resource_types, weights=con_weights, k=1)[0] 
+        resource_ID = key = next((k for k, v in resources_dict.items() if v == resource_at_tile), None)
+        resource_map[x][y] = resource_ID
+        used_mask[x][y] = True
     
+    other_indices = np.argwhere(used_mask == False)
+    for y,x in other_indices:
+        resource_at_tile = 0
+        if altitude_map[x][y] <= water_threshold:
+            resource_at_tile = random.choices(resource_types, weights=wtr_weights, k=1)[0]
+        else:
+            resource_at_tile = random.choices(resource_types, weights=weights, k=1)[0] 
+        resource_ID = key = next((k for k, v in resources_dict.items() if v == resource_at_tile), None)
+        resource_map[x][y] = resource_ID
+        used_mask[x][y] = True
+
+
+    
+
     resource_colors = [
     "#000000",  # 0: None (black)
     "#228B22",  # 1: Wood (green)
     "#f5deb3",  # 2: Salt (wheat)
     "#4B4B4B",  # 3: Coal (dark gray)
     "#A9A9A9",  # 4: Iron (gray)
-    "#FFD700",  # 5: Gold (gold)
-    "#FFFF99",  # 6: Grain (light yellow)
+    "#FFD700",  # 5: Gold (vibrant yellow)
+    "#ADFF2F",  # 6: Grain (green-yellow / spring green)
     "#8B4513",  # 7: Oil (brown)
     "#808080",  # 8: Stone (stone gray)
 ]
+
     plt.figure("RESOURCE MAP")
     plt.imshow(resource_map, cmap=ListedColormap(resource_colors),interpolation='nearest')
     plt.title("RESOURCE MAP")
     plt.colorbar()
 
+    return resources_dict, resource_map
 
-        
 
-
-  
-    return 0
+       
                 
 
 # MAP GENERATION
@@ -761,9 +823,10 @@ def main():
     #MAP CREATION
     altitude = create_altitude_map(WORLD_SIZE,plates,vor_regions,is_vor_border,fault_lines,WORLD_SEED)
     temp_type, temperature = create_temp_map(WORLD_SIZE,WORLD_SEED)
-    Display_Interactive_Maps(altitude,temperature,temp_type,WORLD_SIZE,WORLD_SEED,seedAsString)
+    resources_dict,resource_map = populate_resources(altitude,fault_lines,WORLD_SIZE,temp_type,0.4,0.6,WORLD_SEED)
 
-    populate_resources(altitude,fault_lines,WORLD_SIZE,temp_type,0.4,0.6,WORLD_SEED)
+    #DISPlAY MAPS
+    Display_Interactive_Maps(altitude,temperature,temp_type,WORLD_SIZE,WORLD_SEED,seedAsString)
     plt.show()
 
 
