@@ -396,30 +396,117 @@ def create_fault_map(vor_ID_list, vor_regions_map, tect_plates, size, WORLD_SEED
     # plt.show()
 
     return fault_lines_map
-def populate_resources(fault_lines_map,size,temp_type):
+def populate_resources(altitude_map,fault_lines_map,size,temp_type, water_threshold,mtn_threshold,WORLD_SEED):
+    
+
+    
+    resource_map = np.zeros((size,size))
     resources_dict = {
-        0: "Stone",
+        0: "None",
         1: "Wood",
         2: "Salt",
         3: "Coal",
         4: "Iron",
         5: "Gold", 
         6: "Grain",
+        7: "Oil",
+        8: "Stone",
     } 
+    
     resources_rarity = {
+        "None" : 2, #this determines density of resources in map
         "Stone" : 0.8,
         "Wood" : 0.8,
-        "Salt" : 0.4,
+        "Salt" : 0, #it will be manually raised then lowered for ocean tiles
         "Coal" : 0.5,
         "Iron" : 0.6,
         "Gold" : 0.2,
         "Grain" : 0.9,
-
+        "Oil" : 0.4
     }
-    for row in range(size):
-        for col in range(col):
-            if fault_lines_map[row][col] != 0: #FAULT FOUND
-                print("Placeholder")
+    mtn_resources_rarity = {
+        "None" : 2, #this determines density of resources in map
+        "Stone" : 0.8,
+        "Wood" : 0.05,
+        "Salt" : 0, #it will be manually raised then lowered for ocean tiles
+        "Coal" : 0.5,
+        "Iron" : 0.6,
+        "Gold" : 0.4,
+        "Grain" : 0,
+        "Oil" : 0.2
+    }
+    wtr_resources_rarity = {
+        "None" : 2, #this determines density of resources in map
+        "Stone" : 0.8,
+        "Wood" : 0.0,
+        "Salt" : 0.5, #it will be manually raised then lowered for ocean tiles
+        "Coal" : 0.5,
+        "Iron" : 0.6,
+        "Gold" : 0.2,
+        "Grain" : 0,
+        "Oil" : 0.4
+    }
+    resource_types = list(resources_rarity.keys())
+    
+    if temp_type == "hot":
+        wtr_resources_rarity["Salt"] += 0.2
+        mtn_resources_rarity["Salt"] += 0.2
+        resources_rarity["Salt"] += 0.2
+
+        wtr_resources_rarity["Oil"] += 0.2
+        mtn_resources_rarity["Oil"] += 0.2
+        resources_rarity["Oil"] += 0.2
+
+        mtn_resources_rarity["Gold"] += 0.1
+
+    random.seed(WORLD_SEED)
+    rng = random.random()
+    threshold = 0.4
+    convergent_mask = (fault_lines_map != 0  ).astype(float)
+    dist_conv = distance_transform_edt(1 - convergent_mask) # map of float that indicates distance from fault
+    plt.figure("Distance from Fault Map")
+    plt.imshow(dist_conv, cmap="gray")
+    plt.title("Distance from fault map")
+    plt.colorbar()
+    
+    weights = list(resources_rarity.values())   
+    mtn_weights = list(mtn_resources_rarity.values())   
+    wtr_weights = list(wtr_resources_rarity.values())  
+
+    indices = np.argwhere(dist_conv > threshold)
+    for y,x in indices:
+        if altitude_map[x][y] <= water_threshold + 0.05: #salt can be included
+        
+            resource_at_tile = random.choices(resource_types, weights=wtr_weights, k=1)[0]
+            
+        elif altitude_map[x][y] >= mtn_threshold:
+            resource_at_tile = random.choices(resource_types, weights= mtn_weights, k=1)[0]
+        else:
+            resource_at_tile = random.choices(resource_types, weights=weights, k=1)[0]
+        resource_ID = key = next((k for k, v in resources_dict.items() if v == resource_at_tile), None)
+        resource_map[x][y] = resource_ID
+    
+    resource_colors = [
+    "#000000",  # 0: None (black)
+    "#228B22",  # 1: Wood (green)
+    "#f5deb3",  # 2: Salt (wheat)
+    "#4B4B4B",  # 3: Coal (dark gray)
+    "#A9A9A9",  # 4: Iron (gray)
+    "#FFD700",  # 5: Gold (gold)
+    "#FFFF99",  # 6: Grain (light yellow)
+    "#8B4513",  # 7: Oil (brown)
+    "#808080",  # 8: Stone (stone gray)
+]
+    plt.figure("RESOURCE MAP")
+    plt.imshow(resource_map, cmap=ListedColormap(resource_colors),interpolation='nearest')
+    plt.title("RESOURCE MAP")
+    plt.colorbar()
+
+
+        
+
+
+  
     return 0
                 
 
@@ -676,7 +763,10 @@ def main():
     temp_type, temperature = create_temp_map(WORLD_SIZE,WORLD_SEED)
     Display_Interactive_Maps(altitude,temperature,temp_type,WORLD_SIZE,WORLD_SEED,seedAsString)
 
+    populate_resources(altitude,fault_lines,WORLD_SIZE,temp_type,0.4,0.6,WORLD_SEED)
     plt.show()
+
+
 
 
 
