@@ -19,6 +19,11 @@ from skimage.draw import line
 #FAULT LINE FALL OFF FOR TERRAIN
 from scipy.ndimage import distance_transform_edt
 
+#RESOURCE MGMT
+from collections import defaultdict
+
+
+
 
 # DISPLAY
 def write_world_to_file(seed_as_string,world_map,file_name,print_type):
@@ -338,7 +343,7 @@ def create_tectonic_plates(vor_ID,vor_regions,size,WORLD_SEED): # returns dict o
         tect_plate_info["base_elevation"] = base_elevation
         
         tectonic_plate_dict[regions_ID] = tect_plate_info
-    print(tectonic_plate_dict)
+    #print(tectonic_plate_dict)
     return tectonic_plate_dict
 def create_fault_map(vor_ID_list, vor_regions_map, tect_plates, size, WORLD_SEED): 
     vor_obj = Voronoi(vor_ID_list)
@@ -804,7 +809,30 @@ def add_perlin_noise(temp_map, scale=0.1, amplitude=5, seed=0): # CHAT GPT'D
             noisy_temp[row, col] += amplitude * noise_val
     return noisy_temp
 
+def find_possible_civ_origins(resource_map,altitude_map,temperature_map,size,civ_land_map):
+    resources_dict = {
+            0: "None",
+            1: "Wood",
+            2: "Salt",
+            3: "Coal",
+            4: "Iron",
+            5: "Gold", 
+            6: "Grain",
+            7: "Oil",
+            8: "Stone",
+        } 
+    
+    possible_settlements = []
+    for y in range(size):
+        for x in range(size):
+            if resources_dict[resource_map[y][x]] == "Grain" and (altitude_map[y][x] > 0.4 and altitude_map[y][x] < 0.7) and civ_land_map[y][x] == 0: #grain in a non water/mtn region thats not owned
+                possible_settlements.append((y,x))
+    return possible_settlements
+
+    
+
 # seedAsString = input("Enter a World Seed: ")
+WORLD_SIZE = 100
 def main():
     print("Starting Program...")
 
@@ -815,7 +843,7 @@ def main():
 
     print(f"Seed: {seedAsString} ({WORLD_SEED})")
     #WORLD GENERATION
-    WORLD_SIZE = 100
+    
     #PLATE GENERATION
     seeds,vor_regions = Voronoi_seeding(WORLD_SIZE,0.00010,WORLD_SEED)
     plates = create_tectonic_plates(seeds,vor_regions,WORLD_SIZE,WORLD_SEED)
@@ -824,6 +852,14 @@ def main():
     altitude = create_altitude_map(WORLD_SIZE,plates,vor_regions,is_vor_border,fault_lines,WORLD_SEED)
     temp_type, temperature = create_temp_map(WORLD_SIZE,WORLD_SEED)
     resources_dict,resource_map = populate_resources(altitude,fault_lines,WORLD_SIZE,temp_type,0.4,0.6,WORLD_SEED)
+
+    civ_land_map = np.zeros((WORLD_SIZE,WORLD_SIZE))
+    possible_origins = find_possible_civ_origins(resource_map,altitude,temperature,WORLD_SIZE,civ_land_map)
+    origin = random.choices(possible_origins, k=1)[0]
+    civ1 = Civilization("Westaria",origin)
+    civ1.simulate_turn(resource_map)
+    civ1.simulate_turn(resource_map)
+    civ1.simulate_turn(resource_map)
 
     #DISPlAY MAPS
     Display_Interactive_Maps(altitude,temperature,temp_type,WORLD_SIZE,WORLD_SEED,seedAsString)
@@ -835,13 +871,168 @@ def main():
 
     return
 
+
+
+class Civilization:
+    # Every Civ will be started on a locaion of grain... prevents instantly starving
+    def __init__(self, name, origin_coords):
+        self.name = name
+        self.tiles = set([origin_coords])
+        self.population = 100
+        self.resources = {} #	dict[str] = int
+        self.id = origin_coords
+        self.age = 0
+        self.color = "#FF0000"
+        self.tech_level = 0 #dependent on age and resources and population
+        self.neighbors = {} #for future diplomacy
+
+        self.cities = [City(self.name,"Capital",origin_coords)]
+
+        self.resources_dict = {
+            0: "None",
+            1: "Wood",
+            2: "Salt",
+            3: "Coal",
+            4: "Iron",
+            5: "Gold", 
+            6: "Grain",
+            7: "Oil",
+            8: "Stone",
+        } 
+    
+
+    def gather_resources(self,resource_map):
+        tech_required = {
+            "Oil" : 4,
+            "Gold" : 2,
+            "Iron" : 1
+            
+        }
+    
+        for y,x in self.tiles:
+            resource = self.resources_dict[ resource_map[y][x] ]
+            if tech_required.get(resource, 0) > self.tech_level: #defaults to 0 if there isnt a required tech level
+                continue
+            self.resources[resource] = self.resources.get(resource, 0) + (self.tech_level - tech_required[resource]  + 1) # if it doesnt exist, appends with a default value of 0 + tech level
+
+        return
+
+
+    def simulate_turn(self,resource_map):
+        for city in self.cities:
+            difference_in_resources = city.simulate_city_turn(resource_map)
+            for resource, quantity in difference_in_resources.items():
+                self.resources[resource] = self.resources.get(resource, 0) + quantity
+
+        
+        print(f"Civilization Age: {self.age}: \nResources:{self.resources}")
+        self.age +=1
+
+class City:
+    def __init__(self, nation, name,location_coords):
+        self.owner = nation
+        self.name = name
+        self.location = location_coords
+        self.tiles = City.get_surrounding_tiles(location_coords,WORLD_SIZE,1 )
+        self.population = 20
+        #I want cities to reflect a tendency to boom then settle
+        self.buildings = []
+        self.current_radius = 1
+        self.age = 0
+        self.possible_buildings = ["Granary","Lumber Yard","Quarry","Blacksmith","Marketplace","Barracks","Forge","Harbor","Watchtower","Town Hall"]
+        self.resources_dict = {
+            0: "None",
+            1: "Wood",
+            2: "Salt",
+            3: "Coal",
+            4: "Iron",
+            5: "Gold", 
+            6: "Grain",
+            7: "Oil",
+            8: "Stone",
+        } 
+    def gather_resources(self,resource_map): #returns array of resources gathered
+        resources_gathered = {}
+        for y,x in self.tiles:
+            resource = self.resources_dict[ resource_map[y][x] ]
+            resources_gathered[resource] = resources_gathered.get(resource, 0) + 1
+           
+
+        return resources_gathered
+    def city_upkeep(self):
+        grain_required = self.population//20
+        wood_required = self.population//50
+        stone_required = self.population//100
+        gold_required = self.population//500
+        
+        upkeep_dict = {
+            "Grain" : grain_required,
+            "Wood" : wood_required,
+            "Stone" : stone_required,
+            "Gold" : gold_required,
+        }
+        return upkeep_dict
+
+    def simulate_city_turn(self,resource_map):
+        
+        resources_gathered = self.gather_resources(resource_map)
+        resources_spent = self.city_upkeep()
+        difference_in_resource = defaultdict(int)
+
+        for resource in self.resources_dict.values():
+            difference_in_resource[resource] = resources_gathered.get(resource, 0) - resources_spent.get(resource, 0)
+
+        
+        self.grow_city(difference_in_resource["Grain"])
+        self.age +=1
+        return difference_in_resource
+
+    def grow_city(self,surplus_grain):
+        radius_thresholds = {
+            1: 20,
+            2: 150,
+            3: 350,
+            4: 500,
+            5: 750,
+            6: 1000,
+            7: 1300,
+            8: 1600,
+            9: 1900,
+            10: 2200
+        }
+
+        if surplus_grain > 0: #GROWTH
+            growth = surplus_grain * 0.5 #need to modify it by an efficiency value... this is fine for now
+            self.population += int(growth)
+        if surplus_grain < 0: #FAMINE
+            shrink = abs(surplus_grain) * 0.3
+            self.population -= int(shrink)
+
+        if self.current_radius < 10:
+            if self.population > radius_thresholds[self.current_radius]:
+                self.current_radius += 1
+                self.tiles = City.get_surrounding_tiles(self.location, self.current_radius)
+        return
+    @staticmethod
+    def get_surrounding_tiles(origin,WORLD_SIZE, radius):
+        yc,xc = origin
+        height, width = WORLD_SIZE, WORLD_SIZE
+        tiles = set()
+
+        for dy in range (-radius,radius + 1):
+            for dx in range (-radius, radius + 1):
+                ny,nx = yc + dy, xc + dx
+                if 0 <= ny < height and 0 <= nx < width:
+                    if np.sqrt(dy**2 + dx**2) <= radius: # x^2 + y^2 = r^2 CIRCLE FORMULA
+                        tiles.add((ny,nx))
+        return tiles
+
+
+
+
 print("RUNNING PROGRAM...")
 main()
 print("PROGRAM FINISHING...")
-
     
 
-
-
-
-
+    
