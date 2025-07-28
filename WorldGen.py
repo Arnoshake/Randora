@@ -930,8 +930,8 @@ class Civilization:
 
         return
 
-    def settle_city(self,resource_map,altitude_map,civ_land_map,WORLD_SEED):
-        
+    def settle_city(self,resource_map,altitude_map,civ_land_map,WORLD_SEED): # assumes cost is already paid
+
         possible_settlements = []
         tiles_of_interest = set()
         for cities in self.cities:
@@ -940,7 +940,10 @@ class Civilization:
         for y, x in tiles_of_interest:
             if (self.resources_dict[resource_map[y][x]] == "Grain" and (altitude_map[y][x] > 0.4 and altitude_map[y][x] < 0.7)) and civ_land_map[y][x] == 0:
                 possible_settlements.append((y,x))
-        return 
+        coords = rng.choice(possible_settlements)
+        number = len(self.cities) + 1
+        city_name = "City " + number
+        return City(self.name,city_name,coords)
         
 
     def simulate_turn(self,resource_map):
