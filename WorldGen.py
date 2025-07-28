@@ -206,7 +206,7 @@ def create_seed():
 # TECTONIC PLATES
 #Vor_regions = 2D Arr holding plate identity
 def Voronoi_seeding(size,seed_density,WORLD_SEED):
-    rng = random.Random(WORLD_SEED)
+    # rng = random.Random(WORLD_SEED)
     num_seeds = max(int((size**2) * seed_density),4) #Vor requires 4 seeds minimum
     vor_points = [[rng.uniform(0, size), rng.uniform(0, size)] for _ in range(num_seeds)]
 
@@ -319,7 +319,7 @@ def create_fault_lines(size, vor_regions,plate_list,vor_seeds): #returns binary 
     return is_vor_border,fault_map
 def create_tectonic_plates(vor_ID,vor_regions,size,WORLD_SEED): # returns dict of plates
     #setting random to WORLD_SEED
-    rng = np.random.default_rng(WORLD_SEED)
+    # rng = np.random.default_rng(WORLD_SEED)
 
     def create_random_unit_vector():
         theta= math.radians( rng.integers(0,361) )
@@ -490,7 +490,7 @@ def populate_resources(altitude_map,fault_lines_map,size,temp_type, water_thresh
         con_resources_rarity["Gold"] += 0.1
 
     random.seed(WORLD_SEED)
-    rng = random.random()
+    # rng = random.random()
     threshold = 10
     convergent_mask = (fault_lines_map == 2  ).astype(float)
     dist_div = distance_transform_edt(1 - convergent_mask) # map of float that indicates distance from fault
@@ -583,7 +583,7 @@ def create_altitude_map(size, plate_list,plate_map,is_vor_border_map,fault_lines
 
     #lower at higher
     scale = zoom_level / size
-    rng = random.Random(WORLD_SEED)
+    # rng = random.Random(WORLD_SEED)
     # scale = zoom_level / size
 
     #ASSIGN PLATES A BIAS AND RUGGEDNESS
@@ -761,7 +761,7 @@ def Display_Interactive_Maps(altitude_map,temperature_map,temp_type,size,WORLD_S
         pass
 def create_temp_map(size,WORLD_SEED):
     
-    rng = random.Random(WORLD_SEED)
+    # rng = random.Random(WORLD_SEED)
     val = rng.uniform(0,101)
     temp = ""
     base_val = 0
@@ -832,17 +832,20 @@ def find_possible_civ_origins(resource_map,altitude_map,temperature_map,size,civ
     
 
 # seedAsString = input("Enter a World Seed: ")
+
 WORLD_SIZE = 100
+
+print("Starting Program...")
+    
+#SEED GENERATION
+seedAsString = create_seed()
+WORLD_SEED = seed_from_string(seedAsString)
+random.seed(WORLD_SEED)
+rng = np.random.default_rng(WORLD_SEED)
+print(f"Seed: {seedAsString} ({WORLD_SEED})")
+
 def main():
-    print("Starting Program...")
-
-    #SEED GENERATION
-    seedAsString = create_seed()
-    WORLD_SEED = seed_from_string(seedAsString)
-    random.seed(WORLD_SEED)
-
-    print(f"Seed: {seedAsString} ({WORLD_SEED})")
-    #WORLD GENERATION
+    
     
     #PLATE GENERATION
     seeds,vor_regions = Voronoi_seeding(WORLD_SIZE,0.00010,WORLD_SEED)
@@ -878,8 +881,18 @@ class Civilization:
     def __init__(self, name, origin_coords):
         self.name = name
         self.tiles = set([origin_coords])
-        self.population = 100
-        self.resources = {} #	dict[str] = int
+        self.population = 50
+        self.resources = {
+        "None" : 0, 
+        "Stone" : 0,
+        "Wood" : 0,
+        "Salt" : 0, 
+        "Coal" : 0,
+        "Iron" : 0,
+        "Gold" : 0,
+        "Grain" : 0,
+        "Oil" : 0
+    }
         self.id = origin_coords
         self.age = 0
         self.color = "#FF0000"
@@ -901,7 +914,7 @@ class Civilization:
         } 
     
 
-    def gather_resources(self,resource_map):
+    def gather_resources(self,resource_map,):
         tech_required = {
             "Oil" : 4,
             "Gold" : 2,
@@ -917,13 +930,24 @@ class Civilization:
 
         return
 
+    def settle_city(self,resource_map,altitude_map,civ_land_map,WORLD_SEED):
+        
+        possible_settlements = []
+        tiles_of_interest = set()
+        for cities in self.cities:
+            surrounding_tiles = cities.get_surrounding_tiles(cities.location,WORLD_SIZE,10)                 #   SHOULD SCALE CIVILIZATION SEARCH SIZE TO SIZE OF MAP
+            tiles_of_interest.update(surrounding_tiles)     
+        for y, x in tiles_of_interest:
+            if (self.resources_dict[resource_map[y][x]] == "Grain" and (altitude_map[y][x] > 0.4 and altitude_map[y][x] < 0.7)) and civ_land_map[y][x] == 0:
+                possible_settlements.append((y,x))
+        return 
+        
 
     def simulate_turn(self,resource_map):
         for city in self.cities:
             difference_in_resources = city.simulate_city_turn(resource_map)
             for resource, quantity in difference_in_resources.items():
                 self.resources[resource] = self.resources.get(resource, 0) + quantity
-
         
         print(f"Civilization Age: {self.age}: \nResources:{self.resources}")
         self.age +=1
@@ -935,7 +959,6 @@ class City:
         self.location = location_coords
         self.tiles = City.get_surrounding_tiles(location_coords,WORLD_SIZE,1 )
         self.population = 20
-        #I want cities to reflect a tendency to boom then settle
         self.buildings = []
         self.current_radius = 1
         self.age = 0
