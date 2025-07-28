@@ -914,21 +914,6 @@ class Civilization:
         } 
     
 
-    def gather_resources(self,resource_map,):
-        tech_required = {
-            "Oil" : 4,
-            "Gold" : 2,
-            "Iron" : 1
-            
-        }
-    
-        for y,x in self.tiles:
-            resource = self.resources_dict[ resource_map[y][x] ]
-            if tech_required.get(resource, 0) > self.tech_level: #defaults to 0 if there isnt a required tech level
-                continue
-            self.resources[resource] = self.resources.get(resource, 0) + (self.tech_level - tech_required[resource]  + 1) # if it doesnt exist, appends with a default value of 0 + tech level
-
-        return
 
     def settle_city(self,resource_map,altitude_map,civ_land_map,WORLD_SEED): # assumes cost is already paid
 
@@ -1037,7 +1022,8 @@ class City:
         if self.current_radius < 10:
             if self.population > radius_thresholds[self.current_radius]:
                 self.current_radius += 1
-                self.tiles = City.get_surrounding_tiles(self.location, self.current_radius)
+                surrounding = City.get_surrounding_tiles(self.location, self.current_radius)
+                self.tiles.update(surrounding)
         return
     @staticmethod
     def get_surrounding_tiles(origin,WORLD_SIZE, radius):
