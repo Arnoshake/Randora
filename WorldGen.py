@@ -809,6 +809,7 @@ def add_perlin_noise(temp_map, scale=0.1, amplitude=5, seed=0): # CHAT GPT'D
             noisy_temp[row, col] += amplitude * noise_val
     return noisy_temp
 
+#CIV
 def find_possible_civ_origins(resource_map,altitude_map,temperature_map,size,civ_land_map):
     resources_dict = {
             0: "None",
@@ -829,6 +830,7 @@ def find_possible_civ_origins(resource_map,altitude_map,temperature_map,size,civ
                 possible_settlements.append((y,x))
     return possible_settlements
 
+
     
 
 # seedAsString = input("Enter a World Seed: ")
@@ -844,35 +846,6 @@ random.seed(WORLD_SEED)
 rng = np.random.default_rng(WORLD_SEED)
 print(f"Seed: {seedAsString} ({WORLD_SEED})")
 
-def main():
-    
-    
-    #PLATE GENERATION
-    seeds,vor_regions = Voronoi_seeding(WORLD_SIZE,0.00010,WORLD_SEED)
-    plates = create_tectonic_plates(seeds,vor_regions,WORLD_SIZE,WORLD_SEED)
-    is_vor_border,fault_lines = create_fault_lines(WORLD_SIZE,vor_regions,plates,seeds)
-    #MAP CREATION
-    altitude = create_altitude_map(WORLD_SIZE,plates,vor_regions,is_vor_border,fault_lines,WORLD_SEED)
-    temp_type, temperature = create_temp_map(WORLD_SIZE,WORLD_SEED)
-    resources_dict,resource_map = populate_resources(altitude,fault_lines,WORLD_SIZE,temp_type,0.4,0.6,WORLD_SEED)
-
-    civ_land_map = np.zeros((WORLD_SIZE,WORLD_SIZE))
-    possible_origins = find_possible_civ_origins(resource_map,altitude,temperature,WORLD_SIZE,civ_land_map)
-    origin = random.choices(possible_origins, k=1)[0]
-    civ1 = Civilization("Westaria",origin)
-    civ1.simulate_turn(resource_map)
-    civ1.simulate_turn(resource_map)
-    civ1.simulate_turn(resource_map)
-
-    #DISPlAY MAPS
-    Display_Interactive_Maps(altitude,temperature,temp_type,WORLD_SIZE,WORLD_SEED,seedAsString)
-    plt.show()
-
-
-
-
-
-    return
 
 
 
@@ -880,7 +853,7 @@ class Civilization:
     # Every Civ will be started on a locaion of grain... prevents instantly starving
     def __init__(self, name, origin_coords):
         self.name = name
-        self.tiles = set([origin_coords])
+        self.tiles = set([tuple(origin_coords)])
         self.population = 50
         self.resources = {
         "None" : 0, 
@@ -912,10 +885,8 @@ class Civilization:
             7: "Oil",
             8: "Stone",
         } 
-    
-
-
-    def settle_city(self,resource_map,altitude_map,civ_land_map,WORLD_SEED): # assumes cost is already paid
+        
+    def settle_city(self,resource_map,altitude_map,civ_land_map): # assumes cost is already paid
 
         possible_settlements = []
         tiles_of_interest = set()
@@ -927,19 +898,83 @@ class Civilization:
                 possible_settlements.append((y,x))
         coords = rng.choice(possible_settlements)
         number = len(self.cities) + 1
-        city_name = "City " + number
-        return City(self.name,city_name,coords)
-        
+        city_name = "City " + str(number)
 
-    def simulate_turn(self,resource_map):
+        new_city = City(self.name, city_name, coords)
+        self.cities.append(new_city)
+        self.tiles.update(new_city.tiles)
+        return new_city
+    @staticmethod
+    def can_afford(nation_resources, cost_dict):
+        return all(
+            nation_resources.get(res, 0) >= cost
+            for res, cost in cost_dict.items()
+        )
+    def can_afford_city_building(self,city):
+        current_upgrade = len(city.buildings)
+
+        if current_upgrade == 0:
+             return self.can_afford(self.resources , city.city_upgrades["Granary"]["cost"])
+                #  for k,v in city.city_upgrades["Granary"]["cost"].items():
+                #      self.resources[k] -=v
+        elif current_upgrade == 1:
+            return self.can_afford(self.resources , city.city_upgrades["Workshop"]["cost"])
+                # for k,v in city.city_upgrades["Workshop"]["cost"].items():
+                #      self.resources[k] -=v
+        elif current_upgrade == 2:
+            return self.can_afford(self.resources , city.city_upgrades["Marketplace"]["cost"])
+                # for k,v in city.city_upgrades["Marketplace"]["cost"].items():
+                #      self.resources[k] -=v
+        else:
+            return False
+
+    
+    def simulate_turn(self,resource_map,altitude_map,civ_land_map):
+        
+        #Update Overall Resources
         for city in self.cities:
             difference_in_resources = city.simulate_city_turn(resource_map)
             for resource, quantity in difference_in_resources.items():
                 self.resources[resource] = self.resources.get(resource, 0) + quantity
         
+        settlement_cost = {
+            "Grain": 100,
+            "Wood": 60,
+            "Stone": 40,
+            "Population": 20
+        }
+        #Possible moves/options for the turn
+        possible_actions = []
+        #CITY SETTLEMENT
+        if self.can_afford(self.resources,settlement_cost):
+            possible_actions.append("settle_city")
+        #Upgrade City
+        for index,city in enumerate(self.cities):
+            if self.can_afford_city_building(city):
+                possible_actions.append({index : "upgrade_city"})
+
+        action = None
+        if not possible_actions:
+            action = None
+        else:
+            action = rng.choice(possible_actions)
+        
+        if action == None:
+            print()
+        elif action == "settle_city":
+            self.settle_city(resource_map,altitude_map,civ_land_map)
+        elif isinstance(action, dict):
+            key,val = next(iter(action.items())) #cast the action dict to an iterator to then call next on it. targets the single instance of the action and then breaks it into key and val
+                # key = city, value = city action
+            if val == "upgrade_city":
+                self.cities[key].upgrade_city(self.resources)
+            
+        for city in self.cities:
+            self.tiles.update(city.tiles)
+
         print(f"Civilization Age: {self.age}: \nResources:{self.resources}")
         self.age +=1
-
+    
 class City:
     def __init__(self, nation, name,location_coords):
         self.owner = nation
@@ -962,6 +997,44 @@ class City:
             7: "Oil",
             8: "Stone",
         } 
+        self.city_upgrades = {
+    "Granary": {
+        "description": "Improves grain production capacity.",
+        "cost": {
+            "Wood": 50,
+            "Stone": 30,
+        },
+        "benefits": {
+            "Grain": 10
+        },
+        "requires": None
+    },
+    "Workshop": {
+        "description": "Increases production of refined materials.",
+        "cost": {
+            "Wood": 80,
+            "Stone": 50,
+            "Gold": 20
+        },
+        "benefits": {
+            "Iron": 5,
+            "Coal": 5
+        },
+        "requires": "Granary"
+    },
+    "Marketplace": {
+        "description": "Boosts gold income through trade.",
+        "cost": {
+            "Wood": 60,
+            "Stone": 40,
+            "Gold": 50
+        },
+        "benefits": {
+            "Gold": 25
+        },
+        "requires": "Workshop"
+    },
+        }
     def gather_resources(self,resource_map): #returns array of resources gathered
         resources_gathered = {}
         for y,x in self.tiles:
@@ -1022,12 +1095,12 @@ class City:
         if self.current_radius < 10:
             if self.population > radius_thresholds[self.current_radius]:
                 self.current_radius += 1
-                surrounding = City.get_surrounding_tiles(self.location, self.current_radius)
+                surrounding = City.get_surrounding_tiles(self.location, WORLD_SIZE, self.current_radius)
                 self.tiles.update(surrounding)
         return
     @staticmethod
     def get_surrounding_tiles(origin,WORLD_SIZE, radius):
-        yc,xc = origin
+        yc,xc = tuple(origin)
         height, width = WORLD_SIZE, WORLD_SIZE
         tiles = set()
 
@@ -1038,8 +1111,95 @@ class City:
                     if np.sqrt(dy**2 + dx**2) <= radius: # x^2 + y^2 = r^2 CIRCLE FORMULA
                         tiles.add((ny,nx))
         return tiles
+    @staticmethod
+    def can_afford(nation_resources, cost_dict):
+        return all(
+            nation_resources.get(res, 0) >= cost
+            for res, cost in cost_dict.items()
+        )
+    def upgrade_city(self, civ_resources):
+        current_upgrade = len(self.buildings)
+
+        if current_upgrade == 0:
+            upgrade = "Granary"
+        elif current_upgrade == 1:
+            upgrade = "Workshop"
+        elif current_upgrade == 2:
+            upgrade = "Marketplace"
+        else:
+            return
+
+        if self.can_afford(civ_resources, self.city_upgrades[upgrade]["cost"]):
+            for k, v in self.city_upgrades[upgrade]["cost"].items():
+                civ_resources[k] -= v
+            self.buildings.append(upgrade)
+
+        
+
+def update_civ_map(civ_map,civilizations):
+    for index,civ in enumerate(civilizations):
+        for y,x in civ.tiles:
+            civ_map[y][x] = (index + 1)
 
 
+    
+
+
+def main():
+    
+    
+    #PLATE GENERATION
+    seeds,vor_regions = Voronoi_seeding(WORLD_SIZE,0.00010,WORLD_SEED)
+    plates = create_tectonic_plates(seeds,vor_regions,WORLD_SIZE,WORLD_SEED)
+    is_vor_border,fault_lines = create_fault_lines(WORLD_SIZE,vor_regions,plates,seeds)
+    #MAP CREATION
+    altitude = create_altitude_map(WORLD_SIZE,plates,vor_regions,is_vor_border,fault_lines,WORLD_SEED)
+    temp_type, temperature = create_temp_map(WORLD_SIZE,WORLD_SEED)
+    resources_dict,resource_map = populate_resources(altitude,fault_lines,WORLD_SIZE,temp_type,0.4,0.6,WORLD_SEED)
+
+    
+    
+
+    #DISPlAY MAPS
+    Display_Interactive_Maps(altitude,temperature,temp_type,WORLD_SIZE,WORLD_SEED,seedAsString)
+    plt.show()
+
+
+    #CIVILIZATIONS
+
+    civilizations = []
+    civ_territories_map = np.zeros((WORLD_SIZE,WORLD_SIZE))
+    for civs in range(5): # 5 starting civilizations
+        origin = tuple(rng.choice(find_possible_civ_origins(resource_map,altitude,temperature,WORLD_SIZE,civ_territories_map)) )
+        civilizations.append(Civilization(f"Civilization_{civs}", origin))
+
+
+    update_civ_map(civ_territories_map,civilizations) #initial territories
+
+    year = 0
+
+    while year < 1000:
+        update_civ_map(civ_territories_map,civilizations) #initial territories
+        for civ in civilizations:
+            civ.simulate_turn(resource_map,altitude,civ_territories_map)
+        year+=1
+    
+    plt.figure(figsize=(WORLD_SIZE, WORLD_SIZE))
+    plt.imshow(civ_territories_map, cmap='tab20', interpolation='nearest')
+    plt.title("Civilization Territories")
+    plt.axis('off')
+    print(np.unique(civ_territories_map, return_counts=True))
+    plt.show()
+
+
+    
+
+
+
+
+
+
+    return
 
 
 print("RUNNING PROGRAM...")
