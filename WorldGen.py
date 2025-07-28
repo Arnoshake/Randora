@@ -850,6 +850,35 @@ print(f"Seed: {seedAsString} ({WORLD_SEED})")
 
 
 class Civilization:
+    def print_summary(self):
+        print("="*40)
+        print(f"Summary for Civilization: {self.name}")
+        print(f"Age: {self.age} turns")
+        print(f"Number of Cities: {len(self.cities)}")
+        
+        total_population = sum(city.population for city in self.cities)
+        print(f"Total Population: {total_population}")
+
+        print("Resources:")
+        for resource, amount in self.resources.items():
+            print(f"  {resource}: {amount}")
+
+        print("City Details:")
+        for i, city in enumerate(self.cities):
+            print(f"  {i+1}. {city.name}")
+            print(f"     Population: {city.population}")
+            if hasattr(city, "location"):
+                print(f"     Location: {city.location}")
+            # Display buildings
+            if hasattr(city, "buildings") and city.buildings:
+                if isinstance(city.buildings, dict):
+                    building_list = list(city.buildings.keys())
+                else:
+                    building_list = list(city.buildings)
+                print(f"     Buildings: {', '.join(building_list)}")
+            else:
+                print(f"     Buildings: None")
+        print("="*40)
     # Every Civ will be started on a locaion of grain... prevents instantly starving
     def __init__(self, name, origin_coords):
         self.name = name
@@ -885,7 +914,8 @@ class Civilization:
             7: "Oil",
             8: "Stone",
         } 
-        
+
+
     def settle_city(self,resource_map,altitude_map,civ_land_map): # assumes cost is already paid
 
         possible_settlements = []
@@ -907,7 +937,7 @@ class Civilization:
         self.tiles.update(new_city.tiles)
         return True
     @staticmethod
-    def can_afford(nation_resources, cost_dict):
+    def can_afford(nation_resources, cost_dict): #helper method
         return all(
             nation_resources.get(res, 0) >= cost
             for res, cost in cost_dict.items()
@@ -938,6 +968,8 @@ class Civilization:
             difference_in_resources = city.simulate_city_turn(resource_map)
             for resource, quantity in difference_in_resources.items():
                 self.resources[resource] = self.resources.get(resource, 0) + quantity
+                if  self.resources[resource] < 0:
+                     self.resources[resource] = 0
         
         settlement_cost = {
             "Grain": 100,
@@ -1074,6 +1106,7 @@ class City:
         for resource in self.resources_dict.values():
             difference_in_resource[resource] = resources_gathered.get(resource, 0) - resources_spent.get(resource, 0)
 
+
         
         self.grow_city(difference_in_resource["Grain"])
         self.age +=1
@@ -1193,7 +1226,7 @@ def main():
         year+=1
     
     for civs in civilizations:
-        print(f"Cities: {civs.cities}\nResources:{civs.resources}\n")
+        civs.print_summary()
    
     update_civ_map(civ_territories_map, civilizations)
     plt.figure()
