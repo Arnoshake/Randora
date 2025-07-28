@@ -896,6 +896,8 @@ class Civilization:
         for y, x in tiles_of_interest:
             if (self.resources_dict[resource_map[y][x]] == "Grain" and (altitude_map[y][x] > 0.4 and altitude_map[y][x] < 0.7)) and civ_land_map[y][x] == 0:
                 possible_settlements.append((y,x))
+        if not possible_settlements:
+            return False
         coords = rng.choice(possible_settlements)
         number = len(self.cities) + 1
         city_name = "City " + str(number)
@@ -903,7 +905,7 @@ class Civilization:
         new_city = City(self.name, city_name, coords)
         self.cities.append(new_city)
         self.tiles.update(new_city.tiles)
-        return new_city
+        return True
     @staticmethod
     def can_afford(nation_resources, cost_dict):
         return all(
@@ -948,6 +950,8 @@ class Civilization:
         #CITY SETTLEMENT
         if self.can_afford(self.resources,settlement_cost):
             possible_actions.append("settle_city")
+            for res, cost in settlement_cost.items():
+                self.resources[res] -= cost
         #Upgrade City
         for index,city in enumerate(self.cities):
             if self.can_afford_city_building(city):
@@ -962,7 +966,11 @@ class Civilization:
         if action == None:
             print()
         elif action == "settle_city":
-            self.settle_city(resource_map,altitude_map,civ_land_map)
+            success = self.settle_city(resource_map, altitude_map, civ_land_map)
+            if success:
+                for res, cost in settlement_cost.items():
+                    self.resources[res] -= cost
+            
         elif isinstance(action, dict):
             key,val = next(iter(action.items())) #cast the action dict to an iterator to then call next on it. targets the single instance of the action and then breaks it into key and val
                 # key = city, value = city action
@@ -972,7 +980,7 @@ class Civilization:
         for city in self.cities:
             self.tiles.update(city.tiles)
 
-        print(f"Civilization Age: {self.age}: \nResources:{self.resources}")
+        # print(f"Civilization Age: {self.age}: \nResources:{self.resources}")
         self.age +=1
     
 class City:
@@ -1073,16 +1081,16 @@ class City:
 
     def grow_city(self,surplus_grain):
         radius_thresholds = {
-            1: 20,
-            2: 150,
-            3: 350,
-            4: 500,
-            5: 750,
-            6: 1000,
-            7: 1300,
-            8: 1600,
-            9: 1900,
-            10: 2200
+            1: 10,
+            2: 20,
+            3: 40,
+            4: 80,
+            5: 120,
+            6: 160,
+            7: 200,
+            8: 240,
+            9: 280,
+            10: 320
         }
 
         if surplus_grain > 0: #GROWTH
@@ -1162,7 +1170,7 @@ def main():
 
     #DISPlAY MAPS
     Display_Interactive_Maps(altitude,temperature,temp_type,WORLD_SIZE,WORLD_SEED,seedAsString)
-    plt.show()
+    # plt.show()
 
 
     #CIVILIZATIONS
@@ -1184,13 +1192,15 @@ def main():
             civ.simulate_turn(resource_map,altitude,civ_territories_map)
         year+=1
     
-    plt.figure(figsize=(WORLD_SIZE, WORLD_SIZE))
-    plt.imshow(civ_territories_map, cmap='tab20', interpolation='nearest')
+    for civs in civilizations:
+        print(f"Cities: {civs.cities}\nResources:{civs.resources}\n")
+   
+    update_civ_map(civ_territories_map, civilizations)
+    plt.figure()
+    plt.imshow(civ_territories_map, cmap='tab20', interpolation='nearest', aspect='equal')
     plt.title("Civilization Territories")
     plt.axis('off')
-    print(np.unique(civ_territories_map, return_counts=True))
     plt.show()
-
 
     
 
