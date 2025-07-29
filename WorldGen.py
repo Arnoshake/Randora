@@ -897,11 +897,10 @@ class Civilization:
     }
         self.id = origin_coords
         self.age = 0
-        self.color = "#FF0000"
         self.tech_level = 0 #dependent on age and resources and population
         self.neighbors = {} #for future diplomacy
 
-        self.cities = [City(self.name,"Capital",origin_coords)]
+        self.cities = list([City(self.name,"Capital",origin_coords)])
 
         self.resources_dict = {
             0: "None",
@@ -960,7 +959,6 @@ class Civilization:
         else:
             return False
 
-    
     def simulate_turn(self,resource_map,altitude_map,civ_land_map):
         
         #Update Overall Resources
@@ -1022,21 +1020,23 @@ class City:
         self.location = location_coords
         self.tiles = City.get_surrounding_tiles(location_coords,WORLD_SIZE,1 )
         self.population = 20
-        self.buildings = []
-        self.current_radius = 1
         self.age = 0
-        self.possible_buildings = ["Granary","Lumber Yard","Quarry","Blacksmith","Marketplace","Barracks","Forge","Harbor","Watchtower","Town Hall"]
-        self.resources_dict = {
-            0: "None",
-            1: "Wood",
-            2: "Salt",
-            3: "Coal",
-            4: "Iron",
-            5: "Gold", 
-            6: "Grain",
-            7: "Oil",
-            8: "Stone",
-        } 
+        self.current_radius = 1
+        self.radius_threshold = {
+            1: 0,
+            2: 40,
+            3: 80,
+            4: 160,
+            5: 250,
+            6: 500,
+            7: 800,
+            8: 1200,
+            9: 1600,
+            10: 2500
+
+        }
+        self.buildings = []
+        self.next_upgrade = 0
         self.city_upgrades = {
     "Granary": {
         "description": "Improves grain production capacity.",
@@ -1075,19 +1075,34 @@ class City:
         "requires": "Workshop"
     },
         }
-    def gather_resources(self,resource_map): #returns array of resources gathered
-        resources_gathered = {}
+        # self.possible_buildings = ["Granary","Lumber Yard","Quarry","Blacksmith","Marketplace","Barracks","Forge","Harbor","Watchtower","Town Hall"]
+        
+        self.resources_dict = { #used to access resources map
+            0: "None",
+            1: "Wood",
+            2: "Salt",
+            3: "Coal",
+            4: "Iron",
+            5: "Gold", 
+            6: "Grain",
+            7: "Oil",
+            8: "Stone",
+        } 
+    def city_gain(self,resource_map): # returns raw resources gained
+        resources_gathered = defaultdict(int)
         for y,x in self.tiles:
             resource = self.resources_dict[ resource_map[y][x] ]
-            resources_gathered[resource] = resources_gathered.get(resource, 0) + 1
-           
-
+            
+            if resource != "None":
+                resources_gathered[resource] += 1 
+        resources_gathered["Gold"] += self.population *0.2 #Taxation/Commerce
         return resources_gathered
-    def city_upkeep(self):
+
+    def city_upkeep(self): #dict of spent resource
         grain_required = self.population//20
         wood_required = self.population//50
         stone_required = self.population//100
-        gold_required = self.population//500
+        gold_required = 0  # CHANGE GOLD REQUIREMENT TO BE DETERMINED BY BUILDINGS
         
         upkeep_dict = {
             "Grain" : grain_required,
@@ -1095,52 +1110,60 @@ class City:
             "Stone" : stone_required,
             "Gold" : gold_required,
         }
-        return upkeep_dict
+        resources_spent = defaultdict(int)
+        for k,v in upkeep_dict.items:
+            resources_spent[k] += v
 
-    def simulate_city_turn(self,resource_map):
-        
-        resources_gathered = self.gather_resources(resource_map)
-        resources_spent = self.city_upkeep()
-        difference_in_resource = defaultdict(int)
+        return resources_spent
+    def city_maint(self,civ_resources): #void
+        resources_gained = self.city_gain(civ_resources)
+        resources_spent = self.city_upkeep(civ_resources)
 
-        for resource in self.resources_dict.values():
-            difference_in_resource[resource] = resources_gathered.get(resource, 0) - resources_spent.get(resource, 0)
-
-
-        
-        self.grow_city(difference_in_resource["Grain"])
-        self.age +=1
-        return difference_in_resource
-
-    def grow_city(self,surplus_grain):
-        radius_thresholds = {
-            1: 10,
-            2: 20,
-            3: 40,
-            4: 80,
-            5: 120,
-            6: 160,
-            7: 200,
-            8: 240,
-            9: 280,
-            10: 320
-        }
-
-        if surplus_grain > 0: #GROWTH
-            growth = surplus_grain * 0.5 #need to modify it by an efficiency value... this is fine for now
-            self.population += int(growth)
-        if surplus_grain < 0: #FAMINE
-            shrink = abs(surplus_grain) * 0.3
-            self.population -= int(shrink)
-
-        if self.current_radius < 10:
-            if self.population > radius_thresholds[self.current_radius]:
-                self.current_radius += 1
-                surrounding = City.get_surrounding_tiles(self.location, WORLD_SIZE, self.current_radius)
-                self.tiles.update(surrounding)
+        for resource in self.resources_dict.values:
+            if resource == "None": 
+                continue
+            net_change = resources_gained[resource] - resources_spent[resource]
+            new_tot = civ_resources[resource] + net_change
+            if new_tot < 0: #DECLINE
+                civ_resources[resource] = 0 #bottoms/clamps at zero
+               
+                if resource == "Grain":
+                    self.population *= 0.8
+                if resource == "Wood" or resource == "Stone":
+                    #FLAVOR FOR SLOWED CONSTRUCTION
+                    placeholder = True
+                if resource == "Gold":
+                    self.population *= 0.9
+                    #FLAVOR FOR ECONOMIC CRISIS
+                    placeholder = True
+            else: #GROWTH
+                civ_resources[resource] = new_tot
+                if resource == "Grain":
+                    #POPULATION GROWTH
+                    pop_growth = net_change * 0.5
+                    self.population += pop_growth
         return
+    
+
+
+    def simulate_city_turn(self,civ_resources, civ_tiles): #void
+        #GAIN/LOSE RESOURCES
+        self.city_maint(civ_resources)
+
+        #UPDATE TILES
+
+        if self.population > self.radius_threshold[math.clamp(self.current_radius + 1, 0, 10)]:
+            self.current_radius +=1
+            new_tiles = self.get_surrounding_tiles(self.location,WORLD_SIZE,self.current_radius)
+            self.tiles = self.tiles.update(new_tiles)
+            civ_tiles.update(self.tiles) #update the civilization to include the added tiles
+
+        self.age +=1
+        
+
+
     @staticmethod
-    def get_surrounding_tiles(origin,WORLD_SIZE, radius):
+    def get_surrounding_tiles(origin,WORLD_SIZE, radius): #returns a SET of TUPLES
         yc,xc = tuple(origin)
         height, width = WORLD_SIZE, WORLD_SIZE
         tiles = set()
@@ -1150,10 +1173,10 @@ class City:
                 ny,nx = yc + dy, xc + dx
                 if 0 <= ny < height and 0 <= nx < width:
                     if np.sqrt(dy**2 + dx**2) <= radius: # x^2 + y^2 = r^2 CIRCLE FORMULA
-                        tiles.add((ny,nx))
+                        tiles.add(tuple((ny,nx)))
         return tiles
     @staticmethod
-    def can_afford(nation_resources, cost_dict):
+    def can_afford(nation_resources, cost_dict): #returns T or F
         return all(
             nation_resources.get(res, 0) >= cost
             for res, cost in cost_dict.items()
