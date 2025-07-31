@@ -571,92 +571,273 @@ def populate_resources(altitude_map,fault_lines_map,size,temp_type, water_thresh
     plt.colorbar()
 
     return resources_dict, resource_map
-def populate_resources_2(altitude_map, fault_lines_map, size, temp_type, water_threshold, mtn_threshold, WORLD_SEED):
+# def populate_resources_2(altitude_map, fault_lines_map, size, temp_type, water_threshold, mtn_threshold, WORLD_SEED):
+#     # 2 = converge
+#     # -2 = diverge
+#     # 1 = other faultlines
+
+#     surface_resource_map = [[set() for _ in range(WORLD_SIZE)] for _ in range(WORLD_SIZE)]
+#     subterranean_resource_map = [[set() for _ in range(WORLD_SIZE)] for _ in range(WORLD_SIZE)]
+
+#     surface_resources_dict = {
+#         0: "None",
+#         1: "Wood",
+#         2: "Grain",
+#     }
+#     subterranean_resources_dict = {
+#         0: "None",
+#         3: "Coal",
+#         4: "Iron",
+#         5: "Gold",
+#         6: "Salt",
+#         7: "Oil",
+#         8: "Stone"
+#     }
+#     wtr_resources_dict = {
+#         0: "None",
+#         6: "Salt",
+#         7: "Oil",
+#     }
+#     resources_rarity = {
+#         "None" : 1,
+#         "Stone" : 0.0,
+#         "Wood" : 0.8,
+#         "Salt" : 0,
+#         "Coal" : 0.1,
+#         "Iron" : 0.1,
+#         "Gold" : 0.1,
+#         "Grain" : 0.9,
+#         "Oil" : 0.1
+#     }
+#     con_resources_rarity = {
+#         "None" : .6,
+#         "Stone" : 2,
+#         "Wood" : 0.05,
+#         "Salt" : 0,
+#         "Coal" : 0.5,
+#         "Iron" : 0.6,
+#         "Gold" : 0.4,
+#         "Grain" : 0,
+#         "Oil" : 0.2
+#     }
+#     div_resources_rarity = {
+#         "None" : 1,
+#         "Stone" : 0.8,
+#         "Wood" : 0.0,
+#         "Salt" : 0.5,
+#         "Coal" : 0.5,
+#         "Iron" : 0.6,
+#         "Gold" : 0.2,
+#         "Grain" : 0,
+#         "Oil" : 0.8
+#     }
+#     tran_resources_rarity = {
+#         "None" : 1,
+#         "Stone" : 1,
+#         "Wood" : 2,
+#         "Salt" : 0,
+#         "Coal" : 0.7,
+#         "Iron" : 0.6,
+#         "Gold" : 0.3,
+#         "Grain" : 3,
+#         "Oil" : 0.6
+#     }
+#     wtr_resources_rarity = {
+#         "None" : 2,
+#         "Stone" : 0.0,
+#         "Wood" : 0.0,
+#         "Salt" : 0.9,
+#         "Coal" : 0,
+#         "Iron" : 0,
+#         "Gold" : 0,
+#         "Grain" : 0.0,
+#         "Oil" : 0.6
+#     }
+#     resource_types = list(resources_rarity.keys())
+
+#     random.seed(WORLD_SEED)
+
+#     threshold = 10
+#     convergent_mask = (fault_lines_map == 2).astype(float)
+#     dist_div = distance_transform_edt(1 - convergent_mask)
+#     divergent_mask = (fault_lines_map == -2).astype(float)
+#     dist_conv = distance_transform_edt(1 - divergent_mask)
+#     transform_mask = (fault_lines_map == 1).astype(float)
+#     dist_tran = distance_transform_edt(1 - transform_mask)
+
+#     weights = list(resources_rarity.values())   
+#     con_weights = list(con_resources_rarity.values())   
+#     div_weights = list(div_resources_rarity.values())  
+#     tran_weights = list(tran_resources_rarity.values())  
+#     wtr_weights = list(wtr_resources_rarity.values())  
+#     used_mask = np.zeros((size, size), dtype=bool)
+
+#     conv_indices = np.argwhere(dist_conv < threshold)
+#     for y, x in conv_indices:
+#         if altitude_map[x][y] <= water_threshold:
+#             resource_at_tile = random.choices(resource_types, weights=wtr_weights, k=1)[0]
+#         else:
+#             resource_at_tile = random.choices(resource_types, weights=con_weights, k=1)[0]
+
+#         resource_ID = next((k for k, v in resources_dict.items() if v == resource_at_tile), None)
+#         if resource_ID is None:
+#             raise ValueError(f"Invalid resource name '{resource_at_tile}' (not in resources_dict)")
+#         resource_map[x][y] = resource_ID
+#         used_mask[x][y] = True
+
+#     div_indices = np.argwhere(dist_div < threshold)
+#     for y, x in div_indices:
+#         if altitude_map[x][y] < water_threshold:
+#             resource_at_tile = random.choices(resource_types, weights=wtr_weights, k=1)[0]
+#         else:
+#             resource_at_tile = random.choices(resource_types, weights=div_weights, k=1)[0]
+#         resource_ID = next((k for k, v in resources_dict.items() if v == resource_at_tile), None)
+#         if resource_ID is None:
+#             raise ValueError(f"Invalid resource name '{resource_at_tile}' (not in resources_dict)")
+#         resource_map[x][y] = resource_ID
+#         used_mask[x][y] = True
+
+#     tran_indices = np.argwhere(dist_tran < threshold)
+#     for y, x in tran_indices:
+#         if altitude_map[x][y] < water_threshold:
+#             resource_at_tile = random.choices(resource_types, weights=wtr_weights, k=1)[0]
+#         else:
+#             resource_at_tile = random.choices(resource_types, weights=tran_weights, k=1)[0]
+#         resource_ID = next((k for k, v in resources_dict.items() if v == resource_at_tile), None)
+#         if resource_ID is None:
+#             raise ValueError(f"Invalid resource name '{resource_at_tile}' (not in resources_dict)")
+#         resource_map[x][y] = resource_ID
+#         used_mask[x][y] = True
+
+#     other_indices = np.argwhere(used_mask == False)
+#     for y, x in other_indices:
+#         if altitude_map[x][y] < water_threshold:
+#             resource_at_tile = random.choices(resource_types, weights=wtr_weights, k=1)[0]
+#         else:
+#             resource_at_tile = random.choices(resource_types, weights=weights, k=1)[0]
+#         resource_ID = next((k for k, v in resources_dict.items() if v == resource_at_tile), None)
+#         if resource_ID is None:
+#             raise ValueError(f"Invalid resource name '{resource_at_tile}' (not in resources_dict)")
+#         resource_map[x][y] = resource_ID
+#         used_mask[x][y] = True
+
+#     # Final validation
+#     valid_ids = set(resources_dict.keys())
+#     invalid_ids = np.unique(resource_map[~np.isin(resource_map, list(valid_ids))])
+#     if len(invalid_ids) > 0:
+#         raise ValueError(f"Invalid resource IDs in resource_map: {invalid_ids}")
+
+#     resource_colors = [
+#         "#000000",  # 0: None
+#         "#228B22",  # 1: Wood
+#         "#f5deb3",  # 2: Salt
+#         "#4B4B4B",  # 3: Coal
+#         "#A9A9A9",  # 4: Iron
+#         "#FFD700",  # 5: Gold
+#         "#ADFF2F",  # 6: Grain
+#         "#8B4513",  # 7: Oil
+#         "#808080",  # 8: Stone
+#     ]
+
+#     plt.figure("RESOURCE MAP")
+#     plt.imshow(resource_map, cmap=ListedColormap(resource_colors), interpolation='nearest')
+#     plt.title("RESOURCE MAP")
+#     plt.colorbar()
+#     plt.axis('off')
+    
+#     return resources_dict, resource_map
+
+def populate_resources_3(altitude_map, fault_lines_map, size, temp_type, water_threshold, mtn_threshold, WORLD_SEED):
     # 2 = converge
     # -2 = diverge
     # 1 = other faultlines
 
-    resource_map = np.full((size, size), fill_value=0, dtype=np.int8)
-    resources_dict = {
+    surface_resource_map = [[set() for _ in range(size)] for _ in range(size)]
+    subterranean_resource_map = [[set() for _ in range(size)] for _ in range(size)]
+
+    surface_resources_dict = {
         0: "None",
         1: "Wood",
-        2: "Salt",
+        2: "Grain",
+    }
+    subterranean_resources_dict = {
+        0: "None",
         3: "Coal",
         4: "Iron",
-        5: "Gold", 
-        6: "Grain",
+        5: "Gold",
+        6: "Salt",
         7: "Oil",
-        8: "Stone",
-    } 
+        8: "Stone"
+    }
+    wtr_resources_dict = {
+        0: "None",
+        6: "Salt",
+        7: "Oil",
+    }
+
     resources_rarity = {
-        "None" : 1,
-        "Stone" : 0.0,
-        "Wood" : 0.8,
-        "Salt" : 0,
-        "Coal" : 0.1,
-        "Iron" : 0.1,
-        "Gold" : 0.1,
-        "Grain" : 0.9,
-        "Oil" : 0.1
+        "None": 1,
+        "Stone": 0.0,
+        "Wood": 0.8,
+        "Salt": 0,
+        "Coal": 0.1,
+        "Iron": 0.1,
+        "Gold": 0.1,
+        "Grain": 0.9,
+        "Oil": 0.1
     }
     con_resources_rarity = {
-        "None" : .6,
-        "Stone" : 2,
-        "Wood" : 0.05,
-        "Salt" : 0,
-        "Coal" : 0.5,
-        "Iron" : 0.6,
-        "Gold" : 0.4,
-        "Grain" : 0,
-        "Oil" : 0.2
+        "None": .6,
+        "Stone": 2,
+        "Wood": 0.05,
+        "Salt": 0,
+        "Coal": 0.5,
+        "Iron": 0.6,
+        "Gold": 0.4,
+        "Grain": 0,
+        "Oil": 0.2
     }
     div_resources_rarity = {
-        "None" : 1,
-        "Stone" : 0.8,
-        "Wood" : 0.0,
-        "Salt" : 0.5,
-        "Coal" : 0.5,
-        "Iron" : 0.6,
-        "Gold" : 0.2,
-        "Grain" : 0,
-        "Oil" : 0.8
+        "None": 1,
+        "Stone": 0.8,
+        "Wood": 0.0,
+        "Salt": 0.5,
+        "Coal": 0.5,
+        "Iron": 0.6,
+        "Gold": 0.2,
+        "Grain": 0,
+        "Oil": 0.8
     }
     tran_resources_rarity = {
-        "None" : 1,
-        "Stone" : 1,
-        "Wood" : 2,
-        "Salt" : 0,
-        "Coal" : 0.7,
-        "Iron" : 0.6,
-        "Gold" : 0.3,
-        "Grain" : 3,
-        "Oil" : 0.6
+        "None": 1,
+        "Stone": 1,
+        "Wood": 2,
+        "Salt": 0,
+        "Coal": 0.7,
+        "Iron": 0.6,
+        "Gold": 0.3,
+        "Grain": 3,
+        "Oil": 0.6
     }
     wtr_resources_rarity = {
-        "None" : 2,
-        "Stone" : 0.0,
-        "Wood" : 0.0,
-        "Salt" : 0.9,
-        "Coal" : 0,
-        "Iron" : 0,
-        "Gold" : 0,
-        "Grain" : 0.0,
-        "Oil" : 0.6
+        "None": 2,
+        "Stone": 0.0,
+        "Wood": 0.0,
+        "Salt": 0.9,
+        "Coal": 0,
+        "Iron": 0,
+        "Gold": 0,
+        "Grain": 0.0,
+        "Oil": 0.6
     }
+
     resource_types = list(resources_rarity.keys())
-
-    if temp_type == "hot":
-        con_resources_rarity["Salt"] += 0.2
-        div_resources_rarity["Salt"] += 0.2
-        tran_resources_rarity["Salt"] += 0.2
-
-        con_resources_rarity["Oil"] += 0.2
-        div_resources_rarity["Oil"] += 0.2
-        tran_resources_rarity["Oil"] += 0.2
-
-        con_resources_rarity["Gold"] += 0.1
+    surface_types = list(surface_resources_dict.values())
+    subterranean_types = list(subterranean_resources_dict.values())
+    wtr_types = list(wtr_resources_dict.values())
 
     random.seed(WORLD_SEED)
+
     threshold = 10
     convergent_mask = (fault_lines_map == 2).astype(float)
     dist_div = distance_transform_edt(1 - convergent_mask)
@@ -665,88 +846,42 @@ def populate_resources_2(altitude_map, fault_lines_map, size, temp_type, water_t
     transform_mask = (fault_lines_map == 1).astype(float)
     dist_tran = distance_transform_edt(1 - transform_mask)
 
-    weights = list(resources_rarity.values())   
-    con_weights = list(con_resources_rarity.values())   
-    div_weights = list(div_resources_rarity.values())  
-    tran_weights = list(tran_resources_rarity.values())  
-    wtr_weights = list(wtr_resources_rarity.values())  
+    weights = list(resources_rarity.values())
+    con_weights = list(con_resources_rarity.values())
+    div_weights = list(div_resources_rarity.values())
+    tran_weights = list(tran_resources_rarity.values())
+    wtr_weights = list(wtr_resources_rarity.values())
 
     used_mask = np.zeros((size, size), dtype=bool)
 
+    def assign_resources(x, y, weights_to_use):
+        if altitude_map[x][y] < water_threshold:
+            sub_res = random.choices(wtr_types, weights=[wtr_resources_rarity[r] for r in wtr_types], k=1)[0]
+        else:
+            sub_res = random.choices(subterranean_types, weights=[resources_rarity[r] for r in subterranean_types], k=1)[0]
+        surf_res = random.choices(surface_types, weights=[resources_rarity[r] for r in surface_types], k=1)[0]
+
+        surface_resource_map[x][y] = surf_res
+        subterranean_resource_map[x][y] = sub_res
+        used_mask[x][y] = True
+
     conv_indices = np.argwhere(dist_conv < threshold)
     for y, x in conv_indices:
-        if altitude_map[x][y] <= water_threshold:
-            resource_at_tile = random.choices(resource_types, weights=wtr_weights, k=1)[0]
-        else:
-            resource_at_tile = random.choices(resource_types, weights=con_weights, k=1)[0]
-
-        resource_ID = next((k for k, v in resources_dict.items() if v == resource_at_tile), None)
-        if resource_ID is None:
-            raise ValueError(f"Invalid resource name '{resource_at_tile}' (not in resources_dict)")
-        resource_map[x][y] = resource_ID
-        used_mask[x][y] = True
+        assign_resources(x, y, con_weights)
 
     div_indices = np.argwhere(dist_div < threshold)
     for y, x in div_indices:
-        if altitude_map[x][y] < water_threshold:
-            resource_at_tile = random.choices(resource_types, weights=wtr_weights, k=1)[0]
-        else:
-            resource_at_tile = random.choices(resource_types, weights=div_weights, k=1)[0]
-        resource_ID = next((k for k, v in resources_dict.items() if v == resource_at_tile), None)
-        if resource_ID is None:
-            raise ValueError(f"Invalid resource name '{resource_at_tile}' (not in resources_dict)")
-        resource_map[x][y] = resource_ID
-        used_mask[x][y] = True
+        assign_resources(x, y, div_weights)
 
     tran_indices = np.argwhere(dist_tran < threshold)
     for y, x in tran_indices:
-        if altitude_map[x][y] < water_threshold:
-            resource_at_tile = random.choices(resource_types, weights=wtr_weights, k=1)[0]
-        else:
-            resource_at_tile = random.choices(resource_types, weights=con_weights, k=1)[0]
-        resource_ID = next((k for k, v in resources_dict.items() if v == resource_at_tile), None)
-        if resource_ID is None:
-            raise ValueError(f"Invalid resource name '{resource_at_tile}' (not in resources_dict)")
-        resource_map[x][y] = resource_ID
-        used_mask[x][y] = True
+        assign_resources(x, y, tran_weights)
 
     other_indices = np.argwhere(used_mask == False)
     for y, x in other_indices:
-        if altitude_map[x][y] < water_threshold:
-            resource_at_tile = random.choices(resource_types, weights=wtr_weights, k=1)[0]
-        else:
-            resource_at_tile = random.choices(resource_types, weights=weights, k=1)[0]
-        resource_ID = next((k for k, v in resources_dict.items() if v == resource_at_tile), None)
-        if resource_ID is None:
-            raise ValueError(f"Invalid resource name '{resource_at_tile}' (not in resources_dict)")
-        resource_map[x][y] = resource_ID
-        used_mask[x][y] = True
+        assign_resources(x, y, weights)
 
-    # Final validation
-    valid_ids = set(resources_dict.keys())
-    invalid_ids = np.unique(resource_map[~np.isin(resource_map, list(valid_ids))])
-    if len(invalid_ids) > 0:
-        raise ValueError(f"Invalid resource IDs in resource_map: {invalid_ids}")
-
-    resource_colors = [
-        "#000000",  # 0: None
-        "#228B22",  # 1: Wood
-        "#f5deb3",  # 2: Salt
-        "#4B4B4B",  # 3: Coal
-        "#A9A9A9",  # 4: Iron
-        "#FFD700",  # 5: Gold
-        "#ADFF2F",  # 6: Grain
-        "#8B4513",  # 7: Oil
-        "#808080",  # 8: Stone
-    ]
-
-    plt.figure("RESOURCE MAP")
-    plt.imshow(resource_map, cmap=ListedColormap(resource_colors), interpolation='nearest')
-    plt.title("RESOURCE MAP")
-    plt.colorbar()
-    plt.axis('off')
-    print("Unique values in resource_map after generation:", np.unique(resource_map))
-    return resources_dict, resource_map
+    return surface_resource_map, subterranean_resource_map
 
        
                 
@@ -984,7 +1119,7 @@ def add_perlin_noise(temp_map, scale=0.1, amplitude=5, seed=0): # CHAT GPT'D
     return noisy_temp
 
 #CIV
-def find_possible_civ_origins(resource_map,altitude_map,temperature_map,size,civ_land_map):
+def find_possible_civ_origins(surface_resource_map,altitude_map,temperature_map,size,civ_land_map):
     resources_dict = {
             0: "None",
             1: "Wood",
@@ -1000,7 +1135,7 @@ def find_possible_civ_origins(resource_map,altitude_map,temperature_map,size,civ
     possible_settlements = []
     for y in range(size):
         for x in range(size):
-            if resources_dict[resource_map[y][x]] == "Grain" and (altitude_map[y][x] > 0.4 and altitude_map[y][x] < 0.7) and civ_land_map[y][x] == 0: #grain in a non water/mtn region thats not owned
+            if resources_dict[surface_resource_map[y][x]] == "Grain" and (altitude_map[y][x] > 0.4 and altitude_map[y][x] < 0.7) and civ_land_map[y][x] == 0: #grain in a non water/mtn region thats not owned
                 possible_settlements.append((y,x))
     return possible_settlements
 
@@ -1019,8 +1154,6 @@ WORLD_SEED = seed_from_string(seedAsString)
 random.seed(WORLD_SEED)
 rng = np.random.default_rng(WORLD_SEED)
 print(f"Seed: {seedAsString} ({WORLD_SEED})")
-
-
 
 
 class Civilization:
@@ -1043,7 +1176,6 @@ class Civilization:
             print(f"     Population: {city.population}")
             if hasattr(city, "location"):
                 print(f"     Location: {city.location}")
-            # Display buildings
             if hasattr(city, "buildings") and city.buildings:
                 if isinstance(city.buildings, dict):
                     building_list = list(city.buildings.keys())
@@ -1053,28 +1185,28 @@ class Civilization:
             else:
                 print(f"     Buildings: None")
         print("="*40)
-    # Every Civ will be started on a locaion of grain... prevents instantly starving
+
     def __init__(self, name, origin_coords):
         self.name = name
         self.tiles = set([tuple(origin_coords)])
         self.population = 50
         self.resources = {
-        "None" : 0, 
-        "Stone" : 100,
-        "Wood" : 100,
-        "Salt" : 0, 
-        "Coal" : 0,
-        "Iron" : 0,
-        "Gold" : 0,
-        "Grain" : 100,
-        "Oil" : 0
-    }
+            "None": 0,
+            "Stone": 100,
+            "Wood": 100,
+            "Salt": 0,
+            "Coal": 0,
+            "Iron": 0,
+            "Gold": 0,
+            "Grain": 100,
+            "Oil": 0
+        }
         self.id = origin_coords
         self.age = 0
-        self.tech_level = 0 #dependent on age and resources and population
-        self.neighbors = {} #for future diplomacy
+        self.tech_level = 0
+        self.neighbors = {}
 
-        self.cities = list([City(self.name,"Capital",origin_coords)])
+        self.cities = list([City(self.name, "Capital", origin_coords)])
 
         self.resources_dict = {
             0: "None",
@@ -1082,23 +1214,22 @@ class Civilization:
             2: "Salt",
             3: "Coal",
             4: "Iron",
-            5: "Gold", 
+            5: "Gold",
             6: "Grain",
             7: "Oil",
             8: "Stone",
-        } 
+        }
 
-
-    def settle_city(self,resource_map,altitude_map,civ_land_map): # assumes cost is already paid
-
+    def settle_city(self, resource_map, altitude_map, civ_land_map):
         possible_settlements = []
         tiles_of_interest = set()
         for cities in self.cities:
-            surrounding_tiles = cities.get_surrounding_tiles(cities.location,WORLD_SIZE,10)                 #   SHOULD SCALE CIVILIZATION SEARCH SIZE TO SIZE OF MAP
-            tiles_of_interest.update(surrounding_tiles)     
+            surrounding_tiles = cities.get_surrounding_tiles(cities.location, WORLD_SIZE, 10)
+            tiles_of_interest.update(surrounding_tiles)
         for y, x in tiles_of_interest:
-            if (self.resources_dict[resource_map[y][x]] == "Grain" and (altitude_map[y][x] > 0.4 and altitude_map[y][x] < 0.7)) and civ_land_map[y][x] == 0:
-                possible_settlements.append((y,x))
+            if (self.resources_dict[resource_map[0][y][x]] == "Grain" and
+                0.4 < altitude_map[y][x] < 0.8 and civ_land_map[y][x] == 0):
+                possible_settlements.append((y, x))
         if not possible_settlements:
             return False
         coords = rng.choice(possible_settlements)
@@ -1109,255 +1240,168 @@ class Civilization:
         self.cities.append(new_city)
         self.tiles.update(new_city.tiles)
         return True
-    @staticmethod
-    def can_afford(nation_resources, cost_dict): #helper method
-        return all(
-            nation_resources.get(res, 0) >= cost
-            for res, cost in cost_dict.items()
-        )
-    def can_afford_city_building(self,city):
-        current_upgrade = len(city.buildings)
 
+    @staticmethod
+    def can_afford(nation_resources, cost_dict):
+        return all(nation_resources.get(res, 0) >= cost for res, cost in cost_dict.items())
+
+    def can_afford_city_building(self, city):
+        current_upgrade = len(city.buildings)
         if current_upgrade == 0:
-             return self.can_afford(self.resources , city.city_upgrades["Granary"]["cost"])
-                #  for k,v in city.city_upgrades["Granary"]["cost"].items():
-                #      self.resources[k] -=v
+            return self.can_afford(self.resources, city.city_upgrades["Granary"]["cost"])
         elif current_upgrade == 1:
-            return self.can_afford(self.resources , city.city_upgrades["Workshop"]["cost"])
-                # for k,v in city.city_upgrades["Workshop"]["cost"].items():
-                #      self.resources[k] -=v
+            return self.can_afford(self.resources, city.city_upgrades["Workshop"]["cost"])
         elif current_upgrade == 2:
-            return self.can_afford(self.resources , city.city_upgrades["Marketplace"]["cost"])
-                # for k,v in city.city_upgrades["Marketplace"]["cost"].items():
-                #      self.resources[k] -=v
+            return self.can_afford(self.resources, city.city_upgrades["Marketplace"]["cost"])
         else:
             return False
-    def take_action(self,resource_map,altitude_map,civ_land_map): #void
+
+    def take_action(self, resource_map, altitude_map, civ_land_map):
         possible_actions = []
-        #CITY SETTLEMENT
         settlement_cost = {
             "Grain": 100,
             "Wood": 60,
             "Stone": 40,
-            "Population": 20
         }
-        
-        if self.can_afford(self.resources,settlement_cost):
+        if self.can_afford(self.resources, settlement_cost):
             possible_actions.append("settle_city")
-        #Upgrade City
-        for index,city in enumerate(self.cities):
+        for index, city in enumerate(self.cities):
             if self.can_afford_city_building(city):
-                possible_actions.append({index : "upgrade_city"})
+                possible_actions.append({index: "upgrade_city"})
 
-        action = None
-        if not possible_actions:
-            action = None
-        else:
-            action = rng.choice(possible_actions)
-        
-        if action == None:
-            placeholder = True
-        elif action == "settle_city":
-            success = self.settle_city(resource_map, altitude_map, civ_land_map) #updates tiles of nation
+        action = rng.choice(possible_actions) if possible_actions else None
+
+        if action == "settle_city":
+            success = self.settle_city(resource_map, altitude_map, civ_land_map)
             if success:
                 for res, cost in settlement_cost.items():
                     self.resources[res] -= cost
-               
-            
-        elif isinstance(action, dict): #only upgrade_city is type(dict)
-            key,val = next(iter(action.items())) #cast the action dict to an iterator to then call next on it. targets the single instance of the action and then breaks it into key and val
-                # key = city, value = city action
+        elif isinstance(action, dict):
+            key, val = next(iter(action.items()))
             if val == "upgrade_city":
                 self.cities[key].upgrade_city(self.resources)
-        return
-            
 
-    def simulate_turn(self,resource_map,altitude_map,civ_land_map):
-        
-        #Update Overall Resources
+    def simulate_turn(self, surface_resource_map, subt_resource_map, altitude_map, civ_land_map):
+        resource_map = np.array([surface_resource_map, subt_resource_map])
         curr_pop = 0
         for city in self.cities:
-            city.simulate_city_turn(self.resources,self.tiles) #updates resources and tiles
+            city.simulate_city_turn(self.resources, self.tiles, resource_map)
             curr_pop += city.population
-        self.population = curr_pop  #updates population
-            
-        
-        self.take_action(self,resource_map,altitude_map,civ_land_map) #generates possible moves (nothing,settle city, upgrade city)
-            
-        self.age +=1
-    
+        self.population = curr_pop
+        self.take_action(resource_map, altitude_map, civ_land_map)
+        self.age += 1
+
+
 class City:
-    def __init__(self, nation, name,location_coords):
+    def __init__(self, nation, name, location_coords):
         self.owner = nation
         self.name = name
         self.location = location_coords
-        self.tiles = City.get_surrounding_tiles(location_coords,WORLD_SIZE,1 )
+        self.tiles = City.get_surrounding_tiles(location_coords, WORLD_SIZE, 1)
         self.population = 20
         self.age = 0
         self.current_radius = 1
         self.radius_threshold = {
-            1: 0,
-            2: 40,
-            3: 80,
-            4: 160,
-            5: 250,
-            6: 500,
-            7: 800,
-            8: 1200,
-            9: 1600,
-            10: 2500
-
+            1: 0, 2: 40, 3: 80, 4: 160, 5: 250,
+            6: 500, 7: 800, 8: 1200, 9: 1600, 10: 2500
         }
         self.buildings = []
         self.next_upgrade = 0
         self.city_upgrades = {
-    "Granary": {
-        "description": "Improves grain production capacity.",
-        "cost": {
-            "Wood": 50,
-            "Stone": 30,
-        },
-        "benefits": {
-            "Grain": 10
-        },
-        "requires": None
-    },
-    "Workshop": {
-        "description": "Increases production of refined materials.",
-        "cost": {
-            "Wood": 80,
-            "Stone": 50,
-            "Gold": 20
-        },
-        "benefits": {
-            "Iron": 5,
-            "Coal": 5
-        },
-        "requires": "Granary"
-    },
-    "Marketplace": {
-        "description": "Boosts gold income through trade.",
-        "cost": {
-            "Wood": 60,
-            "Stone": 40,
-            "Gold": 50
-        },
-        "benefits": {
-            "Gold": 25
-        },
-        "requires": "Workshop"
-    },
+            "Granary": {
+                "description": "Improves grain production capacity.",
+                "cost": {"Wood": 50, "Stone": 30},
+                "benefits": {"Grain": 10},
+                "requires": None
+            },
+            "Workshop": {
+                "description": "Increases production of refined materials.",
+                "cost": {"Wood": 80, "Stone": 50, "Gold": 20},
+                "benefits": {"Iron": 5, "Coal": 5},
+                "requires": "Granary"
+            },
+            "Marketplace": {
+                "description": "Boosts gold income through trade.",
+                "cost": {"Wood": 60, "Stone": 40, "Gold": 50},
+                "benefits": {"Gold": 25},
+                "requires": "Workshop"
+            },
         }
-        # self.possible_buildings = ["Granary","Lumber Yard","Quarry","Blacksmith","Marketplace","Barracks","Forge","Harbor","Watchtower","Town Hall"]
-        
-        self.resources_dict = { #used to access resources map
-            0: "None",
-            1: "Wood",
-            2: "Salt",
-            3: "Coal",
-            4: "Iron",
-            5: "Gold", 
-            6: "Grain",
-            7: "Oil",
-            8: "Stone",
-        } 
-    def city_gain(self,resource_map): # dict of gained resources
-        resources_gathered = defaultdict(int)
-        for y,x in self.tiles:
+        self.resources_dict = {
+            0: "None", 1: "Wood", 2: "Salt", 3: "Coal", 4: "Iron",
+            5: "Gold", 6: "Grain", 7: "Oil", 8: "Stone"
+        }
 
-            resource = self.resources_dict[ resource_map[y][x] ]
-            
-            if resource != "None":
-                resources_gathered[resource] += 1 
-        resources_gathered["Gold"] += self.population *0.2 #Taxation/Commerce
+    def city_gain(self, resource_map):
+        resources_gathered = defaultdict(int)
+        for y, x in self.tiles:
+            if 0 <= y < WORLD_SIZE and 0 <= x < WORLD_SIZE:
+                for layer in range(2):
+                    resource = self.resources_dict[resource_map[layer][y][x]]
+                    if resource != "None":
+                        resources_gathered[resource] += 1
+            resources_gathered["Gold"] += self.population * 0.2
         return resources_gathered
 
-    def city_upkeep(self): #dict of spent resource
-        grain_required = self.population//20
-        wood_required = self.population//50
-        stone_required = self.population//100
-        gold_required = 0  # CHANGE GOLD REQUIREMENT TO BE DETERMINED BY BUILDINGS
-        
-        upkeep_dict = {
-            "Grain" : grain_required,
-            "Wood" : wood_required,
-            "Stone" : stone_required,
-            "Gold" : gold_required,
+    def city_upkeep(self):
+        grain_required = self.population // 20
+        wood_required = self.population // 50
+        stone_required = self.population // 100
+        gold_required = 0
+        return {
+            "Grain": grain_required,
+            "Wood": wood_required,
+            "Stone": stone_required,
+            "Gold": gold_required
         }
-        resources_spent = defaultdict(int)
-        for k,v in upkeep_dict.items:
-            resources_spent[k] += v
 
-        return resources_spent
-    def city_maint(self,civ_resources): #void
-        resources_gained = self.city_gain(civ_resources)
-        resources_spent = self.city_upkeep(civ_resources)
-
-        for resource in self.resources_dict.values:
-            if resource == "None": 
+    def city_maint(self, civ_resources, resource_map):
+        resources_gained = self.city_gain(resource_map)
+        resources_spent = self.city_upkeep()
+        for resource in self.resources_dict.values():
+            if resource == "None":
                 continue
-            net_change = resources_gained[resource] - resources_spent[resource]
+            net_change = resources_gained[resource] - resources_spent.get(resource, 0)
             new_tot = civ_resources[resource] + net_change
-            if new_tot < 0: #DECLINE
-                civ_resources[resource] = 0 #bottoms/clamps at zero
-               
+            if new_tot < 0:
+                civ_resources[resource] = 0
                 if resource == "Grain":
                     self.population *= 0.8
-                if resource == "Wood" or resource == "Stone":
-                    #FLAVOR FOR SLOWED CONSTRUCTION
-                    placeholder = True
-                if resource == "Gold":
+                elif resource == "Gold":
                     self.population *= 0.9
-                    #FLAVOR FOR ECONOMIC CRISIS
-                    placeholder = True
-            else: #GROWTH
+            else:
                 civ_resources[resource] = new_tot
                 if resource == "Grain":
-                    #POPULATION GROWTH
-                    pop_growth = net_change * 0.5
-                    self.population += pop_growth
-        return
-    
+                    self.population += net_change * 1.0
 
-
-    def simulate_city_turn(self,civ_resources, civ_tiles): #void
-        #GAIN/LOSE RESOURCES
-        self.city_maint(civ_resources)
-
-        #UPDATE TILES
-
-        if self.population > self.radius_threshold[math.clamp(self.current_radius + 1, 0, 10)]:
-            self.current_radius +=1
-            new_tiles = self.get_surrounding_tiles(self.location,WORLD_SIZE,self.current_radius)
-            self.tiles = self.tiles.update(new_tiles)
-            civ_tiles.update(self.tiles) #update the civilization to include the added tiles
-
-        self.age +=1
-        
-
+    def simulate_city_turn(self, civ_resources, civ_tiles, resource_map):
+        self.city_maint(civ_resources, resource_map)
+        if self.population > self.radius_threshold.get(min(self.current_radius + 1, 10), float('inf')):
+            self.current_radius += 1
+            new_tiles = self.get_surrounding_tiles(self.location, WORLD_SIZE, self.current_radius)
+            self.tiles.update(new_tiles)
+            civ_tiles.update(self.tiles)
+        self.age += 1
 
     @staticmethod
-    def get_surrounding_tiles(origin,WORLD_SIZE, radius): #returns a SET of TUPLES
-        yc,xc = tuple(origin)
+    def get_surrounding_tiles(origin, WORLD_SIZE, radius):
+        yc, xc = tuple(origin)
         height, width = WORLD_SIZE, WORLD_SIZE
         tiles = set()
-
-        for dy in range (-radius,radius + 1):
-            for dx in range (-radius, radius + 1):
-                ny,nx = yc + dy, xc + dx
+        for dy in range(-radius, radius + 1):
+            for dx in range(-radius, radius + 1):
+                ny, nx = yc + dy, xc + dx
                 if 0 <= ny < height and 0 <= nx < width:
-                    if np.sqrt(dy**2 + dx**2) <= radius: # x^2 + y^2 = r^2 CIRCLE FORMULA
-                        tiles.add(tuple((ny,nx)))
+                    if np.sqrt(dy**2 + dx**2) <= radius:
+                        tiles.add((ny, nx))
         return tiles
+
     @staticmethod
-    def can_afford(nation_resources, cost_dict): #returns T or F
-        return all(
-            nation_resources.get(res, 0) >= cost
-            for res, cost in cost_dict.items()
-        )
+    def can_afford(nation_resources, cost_dict):
+        return all(nation_resources.get(res, 0) >= cost for res, cost in cost_dict.items())
+
     def upgrade_city(self, civ_resources):
         current_upgrade = len(self.buildings)
-
         if current_upgrade == 0:
             upgrade = "Granary"
         elif current_upgrade == 1:
@@ -1366,13 +1410,11 @@ class City:
             upgrade = "Marketplace"
         else:
             return
-
         if self.can_afford(civ_resources, self.city_upgrades[upgrade]["cost"]):
             for k, v in self.city_upgrades[upgrade]["cost"].items():
                 civ_resources[k] -= v
             self.buildings.append(upgrade)
 
-        
 
 def update_civ_map(civ_map,civilizations):
     for index,civ in enumerate(civilizations):
@@ -1393,9 +1435,11 @@ def main():
     #MAP CREATION
     altitude = create_altitude_map(WORLD_SIZE,plates,vor_regions,is_vor_border,fault_lines,WORLD_SEED)
     temp_type, temperature = create_temp_map(WORLD_SIZE,WORLD_SEED)
-    resources_dict,resource_map = populate_resources_2(altitude,fault_lines,WORLD_SIZE,temp_type,0.4,0.6,WORLD_SEED)
-    resource_map.setflags(write=False)
-
+    surface_resources,subt_resources = populate_resources_3(altitude,fault_lines,WORLD_SIZE,temp_type,0.4,0.6,WORLD_SEED)
+    surface_resources.setflags(write=False)
+    subt_resources.setflags(write=False)
+    print("Unique values in surface_resources after generation:", np.unique(surface_resources))
+    print("Unique values in subt_resources after generation:", np.unique(subt_resources))
 
     
     
@@ -1410,7 +1454,7 @@ def main():
     civilizations = []
     civ_territories_map = np.zeros((WORLD_SIZE,WORLD_SIZE))
     for civs in range(1): # 1 starting civilizations
-        origin = tuple(rng.choice(find_possible_civ_origins(resource_map,altitude,temperature,WORLD_SIZE,civ_territories_map)) )
+        origin = tuple(rng.choice(find_possible_civ_origins(surface_resources,altitude,temperature,WORLD_SIZE,civ_territories_map)) )
         civilizations.append(Civilization(f"Civilization_{civs}", origin))
 
 
@@ -1421,7 +1465,7 @@ def main():
     while year < 1000:
         update_civ_map(civ_territories_map,civilizations) #initial territories
         for civ in civilizations:
-            civ.simulate_turn(resource_map,altitude,civ_territories_map)
+            civ.simulate_turn(surface_resources,subt_resources,altitude,civ_territories_map)
         year+=1
     
     for civs in civilizations:
