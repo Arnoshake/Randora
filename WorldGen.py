@@ -22,6 +22,8 @@ from scipy.ndimage import distance_transform_edt
 #RESOURCE MGMT
 from collections import defaultdict
 
+from faker import Faker
+
 
 
 
@@ -1165,6 +1167,26 @@ rng = np.random.default_rng(WORLD_SEED)
 print(f"Seed: {seedAsString} ({WORLD_SEED})")
 
 
+prefixes = [
+    "Ael", "Thal", "Vor", "Kar", "Zan", "My", "Eri", "Gor", "Ul", "Ser",
+    "Bel", "Dra", "Mal", "Fen", "Tor", "Bar", "Ash", "Caer", "Vul", "Nor",
+    "El", "Rav", "Thorn", "Gal", "Syl", "Dur", "Nym", "Mor", "Lun", "Isen",
+    "Ark", "Cal", "Faer", "Or", "Aer", "Grim", "Hal", "Jor", "Val", "Tir",
+    "Ebon", "Bran", "Xan", "Yl", "Saer", "Teth", "Zor", "Quel", "Naer", "Kyr"
+]
+
+suffixes = [
+    "dor", "mere", "heim", "grad", "wyn", "moor", "hollow", "spire", "gate", "reach",
+    "hold", "keep", "stead", "crest", "haven", "cliff", "watch", "run", "forge", "deep",
+    "grove", "bluff", "shade", "pass", "fall", "peak", "den", "mark", "rock", "bastion",
+    "fell", "vale", "thorne", "flame", "storm", "crag", "rift", "glade", "mount", "shard",
+    "bay", "cairn", "point", "river", "meadow", "fen", "brook", "chasm", "barrow", "vault"
+]
+
+
+
+
+
 class Civilization:
     def print_summary(self):
         print("="*40)
@@ -1194,9 +1216,12 @@ class Civilization:
             else:
                 print(f"     Buildings: None")
         print("="*40)
-
-    def __init__(self, name, origin_coords):
-        self.name = name
+    @staticmethod
+    def generate_fantasy_nation():
+        nation_prefixes = ['Kingdom of', 'Empire of', 'The Republic of', 'Dominion of', 'The Free Lands of']
+        return f"{random.choice(nation_prefixes)} {rng.choice(prefixes) + rng.choice(suffixes)}"
+    def __init__(self, origin_coords):
+        self.name = self.generate_fantasy_nation()
         self.tiles = set([tuple(origin_coords)])
         self.population = 50
         self.resources = {
@@ -1302,9 +1327,12 @@ class Civilization:
 
 
 class City:
+    @staticmethod
+    def generate_city_name():
+        return rng.choice(prefixes) + rng.choice(suffixes)
     def __init__(self, nation, name, location_coords):
         self.owner = nation
-        self.name = name
+        self.name = self.generate_city_name()
         self.location = location_coords
         self.tiles = City.get_surrounding_tiles(location_coords, WORLD_SIZE, 1)
         self.population = 20
@@ -1443,7 +1471,6 @@ def update_civ_map(civ_map,civilizations):
 
     
 
-
 def main():
     
     
@@ -1468,12 +1495,15 @@ def main():
 
 
     #CIVILIZATIONS
+    fake = Faker()
+
+    
 
     civilizations = []
     civ_territories_map = np.zeros((WORLD_SIZE,WORLD_SIZE))
     for civs in range(int(rng.uniform(1,6))): # 1 starting civilizations
         origin = tuple(rng.choice(find_possible_civ_origins(surface_resources,altitude,temperature,WORLD_SIZE,civ_territories_map)) )
-        civilizations.append(Civilization(f"Civilization_{civs}", origin))
+        civilizations.append(Civilization(origin))
 
 
     update_civ_map(civ_territories_map,civilizations) #initial territories
@@ -1512,3 +1542,5 @@ print("PROGRAM FINISHING...")
     
 
     
+
+
