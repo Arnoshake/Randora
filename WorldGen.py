@@ -1471,7 +1471,7 @@ def main():
 
     civilizations = []
     civ_territories_map = np.zeros((WORLD_SIZE,WORLD_SIZE))
-    for civs in range(1): # 1 starting civilizations
+    for civs in range(int(rng.uniform(1,6))): # 1 starting civilizations
         origin = tuple(rng.choice(find_possible_civ_origins(surface_resources,altitude,temperature,WORLD_SIZE,civ_territories_map)) )
         civilizations.append(Civilization(f"Civilization_{civs}", origin))
 
