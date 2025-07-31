@@ -748,12 +748,10 @@ def populate_resources(altitude_map,fault_lines_map,size,temp_type, water_thresh
 #     return resources_dict, resource_map
 
 def populate_resources_3(altitude_map, fault_lines_map, size, temp_type, water_threshold, mtn_threshold, WORLD_SEED):
-    # 2 = converge
-    # -2 = diverge
-    # 1 = other faultlines
+    # 2 = converge, -2 = diverge, 1 = transform
 
-    surface_resource_map = [[set() for _ in range(size)] for _ in range(size)]
-    subterranean_resource_map = [[set() for _ in range(size)] for _ in range(size)]
+    surface_resource_map = np.zeros((size, size), dtype=int)
+    subterranean_resource_map = np.zeros((size, size), dtype=int)
 
     surface_resources_dict = {
         0: "None",
@@ -775,6 +773,10 @@ def populate_resources_3(altitude_map, fault_lines_map, size, temp_type, water_t
         7: "Oil",
     }
 
+    # Combine all resources for rarity weight references
+    all_resources_dict = {**surface_resources_dict, **subterranean_resources_dict}
+    reverse_resources_dict = {v: k for k, v in all_resources_dict.items()}
+
     resources_rarity = {
         "None": 1,
         "Stone": 0.0,
@@ -787,54 +789,21 @@ def populate_resources_3(altitude_map, fault_lines_map, size, temp_type, water_t
         "Oil": 0.1
     }
     con_resources_rarity = {
-        "None": .6,
-        "Stone": 2,
-        "Wood": 0.05,
-        "Salt": 0,
-        "Coal": 0.5,
-        "Iron": 0.6,
-        "Gold": 0.4,
-        "Grain": 0,
-        "Oil": 0.2
+        "None": .6, "Stone": 2, "Wood": 0.05, "Salt": 0,
+        "Coal": 0.5, "Iron": 0.6, "Gold": 0.4, "Grain": 0, "Oil": 0.2
     }
     div_resources_rarity = {
-        "None": 1,
-        "Stone": 0.8,
-        "Wood": 0.0,
-        "Salt": 0.5,
-        "Coal": 0.5,
-        "Iron": 0.6,
-        "Gold": 0.2,
-        "Grain": 0,
-        "Oil": 0.8
+        "None": 1, "Stone": 0.8, "Wood": 0.0, "Salt": 0.5,
+        "Coal": 0.5, "Iron": 0.6, "Gold": 0.2, "Grain": 0, "Oil": 0.8
     }
     tran_resources_rarity = {
-        "None": 1,
-        "Stone": 1,
-        "Wood": 2,
-        "Salt": 0,
-        "Coal": 0.7,
-        "Iron": 0.6,
-        "Gold": 0.3,
-        "Grain": 3,
-        "Oil": 0.6
+        "None": 1, "Stone": 1, "Wood": 2, "Salt": 0,
+        "Coal": 0.7, "Iron": 0.6, "Gold": 0.3, "Grain": 3, "Oil": 0.6
     }
     wtr_resources_rarity = {
-        "None": 2,
-        "Stone": 0.0,
-        "Wood": 0.0,
-        "Salt": 0.9,
-        "Coal": 0,
-        "Iron": 0,
-        "Gold": 0,
-        "Grain": 0.0,
-        "Oil": 0.6
+        "None": 2, "Stone": 0.0, "Wood": 0.0, "Salt": 0.9,
+        "Coal": 0, "Iron": 0, "Gold": 0, "Grain": 0.0, "Oil": 0.6
     }
-
-    resource_types = list(resources_rarity.keys())
-    surface_types = list(surface_resources_dict.values())
-    subterranean_types = list(subterranean_resources_dict.values())
-    wtr_types = list(wtr_resources_dict.values())
 
     random.seed(WORLD_SEED)
 
@@ -846,44 +815,67 @@ def populate_resources_3(altitude_map, fault_lines_map, size, temp_type, water_t
     transform_mask = (fault_lines_map == 1).astype(float)
     dist_tran = distance_transform_edt(1 - transform_mask)
 
-    weights = list(resources_rarity.values())
-    con_weights = list(con_resources_rarity.values())
-    div_weights = list(div_resources_rarity.values())
-    tran_weights = list(tran_resources_rarity.values())
-    wtr_weights = list(wtr_resources_rarity.values())
-
     used_mask = np.zeros((size, size), dtype=bool)
 
-    def assign_resources(x, y, weights_to_use):
+    def assign_resources(x, y, rarity_map):
         if altitude_map[x][y] < water_threshold:
-            sub_res = random.choices(wtr_types, weights=[wtr_resources_rarity[r] for r in wtr_types], k=1)[0]
+            sub_weights = [wtr_resources_rarity[r] for r in wtr_resources_dict.values()]
+            sub_choice = random.choices(list(wtr_resources_dict.values()), weights=sub_weights, k=1)[0]
         else:
-            sub_res = random.choices(subterranean_types, weights=[resources_rarity[r] for r in subterranean_types], k=1)[0]
-        surf_res = random.choices(surface_types, weights=[resources_rarity[r] for r in surface_types], k=1)[0]
+            sub_weights = [rarity_map[r] for r in subterranean_resources_dict.values()]
+            sub_choice = random.choices(list(subterranean_resources_dict.values()), weights=sub_weights, k=1)[0]
 
-        surface_resource_map[x][y] = surf_res
-        subterranean_resource_map[x][y] = sub_res
+        surf_weights = [rarity_map[r] for r in surface_resources_dict.values()]
+        surf_choice = random.choices(list(surface_resources_dict.values()), weights=surf_weights, k=1)[0]
+
+        surface_resource_map[x][y] = reverse_resources_dict[surf_choice]
+        subterranean_resource_map[x][y] = reverse_resources_dict[sub_choice]
         used_mask[x][y] = True
 
     conv_indices = np.argwhere(dist_conv < threshold)
     for y, x in conv_indices:
-        assign_resources(x, y, con_weights)
+        assign_resources(x, y, con_resources_rarity)
 
     div_indices = np.argwhere(dist_div < threshold)
     for y, x in div_indices:
-        assign_resources(x, y, div_weights)
+        assign_resources(x, y, div_resources_rarity)
 
     tran_indices = np.argwhere(dist_tran < threshold)
     for y, x in tran_indices:
-        assign_resources(x, y, tran_weights)
+        assign_resources(x, y, tran_resources_rarity)
 
-    other_indices = np.argwhere(used_mask == False)
+    other_indices = np.argwhere(~used_mask)
     for y, x in other_indices:
-        assign_resources(x, y, weights)
+        assign_resources(x, y, resources_rarity)
 
+    grain_id = 2  # assuming this is the correct ID
+    grain_tiles = np.sum(surface_resource_map == grain_id)
+    print(f"Grain tiles on surface: {grain_tiles}")
+    
+    resource_colors = [
+    "#000000",  # 0: None
+    "#228B22",  # 1: Wood
+    "#ADFF2F",  # 2: Grain
+    "#4B4B4B",  # 3: Coal
+    "#A9A9A9",  # 4: Iron
+    "#FFD700",  # 5: Gold
+    "#f5deb3",  # 6: Salt
+    "#8B4513",  # 7: Oil
+    "#808080",  # 8: Stone
+]
+    cmap = ListedColormap(resource_colors)
+
+    plt.figure("SURFACE RESOURCE MAP")
+    plt.imshow(surface_resource_map, cmap=cmap, interpolation='nearest', vmin=0, vmax=8)
+    plt.title("SURFACE RESOURCE MAP")
+    plt.colorbar(ticks=range(len(resource_colors)))
+
+    plt.figure("SUBTERRANEAN RESOURCE MAP")
+    plt.imshow(subterranean_resource_map, cmap=cmap, interpolation='nearest', vmin=0, vmax=8)
+    plt.title("SUBTERRANEAN RESOURCE MAP")
+    plt.colorbar(ticks=range(len(resource_colors)))
     return surface_resource_map, subterranean_resource_map
 
-       
                 
 
 # MAP GENERATION
@@ -1121,23 +1113,40 @@ def add_perlin_noise(temp_map, scale=0.1, amplitude=5, seed=0): # CHAT GPT'D
 #CIV
 def find_possible_civ_origins(surface_resource_map,altitude_map,temperature_map,size,civ_land_map):
     resources_dict = {
-            0: "None",
-            1: "Wood",
-            2: "Salt",
-            3: "Coal",
-            4: "Iron",
-            5: "Gold", 
-            6: "Grain",
-            7: "Oil",
-            8: "Stone",
-        } 
-    
+        0: "None",
+        1: "Wood",
+        2: "Grain",
+        3: "Coal",
+        4: "Iron",
+        5: "Gold",
+        6: "Salt",
+        7: "Oil",
+        8: "Stone"
+    }
     possible_settlements = []
+    valid = []
+    grain_total = 0
+    grain_pass_alt = 0
+    grain_pass_all = 0
+
     for y in range(size):
         for x in range(size):
-            if resources_dict[surface_resource_map[y][x]] == "Grain" and (altitude_map[y][x] > 0.4 and altitude_map[y][x] < 0.7) and civ_land_map[y][x] == 0: #grain in a non water/mtn region thats not owned
-                possible_settlements.append((y,x))
+            if resources_dict[surface_resource_map[y][x]] == "Grain":
+                grain_total += 1
+                if 0.4 < altitude_map[y][x] < 0.8:
+                    grain_pass_alt += 1
+                    if civ_land_map[y][x] == 0:
+                        grain_pass_all += 1
+                        possible_settlements.append(tuple((y,x)))
+
+    print(f"Total Grain Tiles: {grain_total}")
+    print(f"  ↳ Pass Altitude Range: {grain_pass_alt}")
+    print(f"  ↳ Pass Altitude + Not Claimed: {grain_pass_all}")
+
+    print(f"Valid possible civ origins: {len(valid)}")
+
     return possible_settlements
+
 
 
     
@@ -1209,16 +1218,16 @@ class Civilization:
         self.cities = list([City(self.name, "Capital", origin_coords)])
 
         self.resources_dict = {
-            0: "None",
-            1: "Wood",
-            2: "Salt",
-            3: "Coal",
-            4: "Iron",
-            5: "Gold",
-            6: "Grain",
-            7: "Oil",
-            8: "Stone",
-        }
+        0: "None",
+        1: "Wood",
+        2: "Grain",
+        3: "Coal",
+        4: "Iron",
+        5: "Gold",
+        6: "Salt",
+        7: "Oil",
+        8: "Stone"
+    }
 
     def settle_city(self, resource_map, altitude_map, civ_land_map):
         possible_settlements = []
@@ -1328,12 +1337,22 @@ class City:
             },
         }
         self.resources_dict = {
-            0: "None", 1: "Wood", 2: "Salt", 3: "Coal", 4: "Iron",
-            5: "Gold", 6: "Grain", 7: "Oil", 8: "Stone"
-        }
+        0: "None",
+        1: "Wood",
+        2: "Grain",
+        3: "Coal",
+        4: "Iron",
+        5: "Gold",
+        6: "Salt",
+        7: "Oil",
+        8: "Stone"
+    }
 
     def city_gain(self, resource_map):
         resources_gathered = defaultdict(int)
+        resources_gathered["Grain"] += 3
+        resources_gathered["Stone"] += 3
+        resources_gathered["Wood"] += 3
         for y, x in self.tiles:
             if 0 <= y < WORLD_SIZE and 0 <= x < WORLD_SIZE:
                 for layer in range(2):
@@ -1436,10 +1455,9 @@ def main():
     altitude = create_altitude_map(WORLD_SIZE,plates,vor_regions,is_vor_border,fault_lines,WORLD_SEED)
     temp_type, temperature = create_temp_map(WORLD_SIZE,WORLD_SEED)
     surface_resources,subt_resources = populate_resources_3(altitude,fault_lines,WORLD_SIZE,temp_type,0.4,0.6,WORLD_SEED)
-    surface_resources.setflags(write=False)
-    subt_resources.setflags(write=False)
-    print("Unique values in surface_resources after generation:", np.unique(surface_resources))
-    print("Unique values in subt_resources after generation:", np.unique(subt_resources))
+
+    # print("Unique values in surface_resources after generation:", np.unique(surface_resources))
+    # print("Unique values in subt_resources after generation:", np.unique(subt_resources))
 
     
     
