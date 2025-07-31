@@ -1160,13 +1160,22 @@ WORLD_SIZE = 100
 print("Starting Program...")
     
 #SEED GENERATION
-seedAsString = create_seed()
-WORLD_SEED = seed_from_string(seedAsString)
-random.seed(WORLD_SEED)
-rng = np.random.default_rng(WORLD_SEED)
-print(f"Seed: {seedAsString} ({WORLD_SEED})")
 
+def generate_seed():
+    seedAsString = ""
+    answer = input("Would you like a custom seed? (Y/N) ")
+    if answer.lower() == "y":
+        seedAsString = input("Enter your string: ")
+    else:
+        seedAsString = create_seed()
+        
+    WORLD_SEED = seed_from_string(seedAsString)
+    random.seed(WORLD_SEED)
+    rng = np.random.default_rng(WORLD_SEED)
+    print(f"Seed: {seedAsString} ({WORLD_SEED})")
+    return rng, WORLD_SEED,seedAsString
 
+rng,WORLD_SEED,seedAsString = generate_seed()
 prefixes = [
     "Ael", "Thal", "Vor", "Kar", "Zan", "My", "Eri", "Gor", "Ul", "Ser",
     "Bel", "Dra", "Mal", "Fen", "Tor", "Bar", "Ash", "Caer", "Vul", "Nor",
@@ -1196,7 +1205,7 @@ class Civilization:
         
         total_population = sum(city.population for city in self.cities)
         print(f"Total Population: {total_population}")
-
+        print(f"Military Strength: {self.military_strength}")
         print("Resources:")
         for resource, amount in self.resources.items():
             print(f"  {resource}: {amount}")
@@ -1254,6 +1263,7 @@ class Civilization:
         8: "Stone"
     }
 
+        self.military_strength = (self.population ** 0.8) * (1 + self.resources["Iron"] / 200) * (1 + self.resources["Gold"] / 500)
     def settle_city(self, resource_map, altitude_map, civ_land_map):
         possible_settlements = []
         tiles_of_interest = set()
@@ -1315,6 +1325,9 @@ class Civilization:
             if val == "upgrade_city":
                 self.cities[key].upgrade_city(self.resources)
 
+
+    def update_military_strength(self):
+        self.military_strength = (self.population ** 0.8) * (1 + self.resources["Iron"] / 200) * (1 + self.resources["Gold"] / 500)
     def simulate_turn(self, surface_resource_map, subt_resource_map, altitude_map, civ_land_map):
         resource_map = np.array([surface_resource_map, subt_resource_map])
         curr_pop = 0
@@ -1322,6 +1335,7 @@ class Civilization:
             city.simulate_city_turn(self.resources, self.tiles, resource_map)
             curr_pop += city.population
         self.population = curr_pop
+        self.update_military_strength()
         self.take_action(resource_map, altitude_map, civ_land_map)
         self.age += 1
 
@@ -1387,7 +1401,7 @@ class City:
                     resource = self.resources_dict[resource_map[layer][y][x]]
                     if resource != "None":
                         resources_gathered[resource] += 1
-            resources_gathered["Gold"] += self.population * 0.2
+            resources_gathered["Gold"] += self.population * 0.01
         return resources_gathered
 
     def city_upkeep(self):
@@ -1472,7 +1486,7 @@ def update_civ_map(civ_map,civilizations):
     
 
 def main():
-    
+
     
     #PLATE GENERATION
     seeds,vor_regions = Voronoi_seeding(WORLD_SIZE,0.00010,WORLD_SEED)
