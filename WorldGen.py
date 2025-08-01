@@ -22,7 +22,12 @@ from scipy.ndimage import distance_transform_edt
 #RESOURCE MGMT
 from collections import defaultdict
 
-from faker import Faker
+from faker import Faker #name gen
+
+from gpt_utils import simulate_civ_history  # API CALLS
+
+
+
 
 
 
@@ -820,20 +825,22 @@ def populate_resources_3(altitude_map, fault_lines_map, size, temp_type, water_t
     used_mask = np.zeros((size, size), dtype=bool)
 
     def assign_resources(x, y, rarity_map):
+        sub_choice, surf_choice = None, None
         if altitude_map[x][y] < water_threshold:
+            # Ocean tile
+            surf_choice = "None"
             sub_weights = [wtr_resources_rarity[r] for r in wtr_resources_dict.values()]
             sub_choice = random.choices(list(wtr_resources_dict.values()), weights=sub_weights, k=1)[0]
         else:
+            # Land tile
+            surf_weights = [rarity_map[r] for r in surface_resources_dict.values()]
+            surf_choice = random.choices(list(surface_resources_dict.values()), weights=surf_weights, k=1)[0]
             sub_weights = [rarity_map[r] for r in subterranean_resources_dict.values()]
             sub_choice = random.choices(list(subterranean_resources_dict.values()), weights=sub_weights, k=1)[0]
-
-        surf_weights = [rarity_map[r] for r in surface_resources_dict.values()]
-        surf_choice = random.choices(list(surface_resources_dict.values()), weights=surf_weights, k=1)[0]
 
         surface_resource_map[x][y] = reverse_resources_dict[surf_choice]
         subterranean_resource_map[x][y] = reverse_resources_dict[sub_choice]
         used_mask[x][y] = True
-
     conv_indices = np.argwhere(dist_conv < threshold)
     for y, x in conv_indices:
         assign_resources(x, y, con_resources_rarity)
@@ -1141,11 +1148,11 @@ def find_possible_civ_origins(surface_resource_map,altitude_map,temperature_map,
                         grain_pass_all += 1
                         possible_settlements.append(tuple((y,x)))
 
-    print(f"Total Grain Tiles: {grain_total}")
-    print(f"  ↳ Pass Altitude Range: {grain_pass_alt}")
-    print(f"  ↳ Pass Altitude + Not Claimed: {grain_pass_all}")
+    # print(f"Total Grain Tiles: {grain_total}")
+    # print(f"  ↳ Pass Altitude Range: {grain_pass_alt}")
+    # print(f"  ↳ Pass Altitude + Not Claimed: {grain_pass_all}")
 
-    print(f"Valid possible civ origins: {len(valid)}")
+    print(f"Valid possible civ origins: {len(possible_settlements)}")
 
     return possible_settlements
 
@@ -1193,10 +1200,40 @@ suffixes = [
 ]
 
 
+world_prefixes = [
+    "Ael", "Ash", "Bar", "Brae", "Cal", "Cor", "Dra", "Eld", "Fey", "Gal",
+    "Gor", "Ith", "Kael", "Kel", "Lor", "Mal", "Mor", "Nal", "Nor", "Nyx",
+    "Orin", "Quel", "Rha", "Shae", "Syl", "Tir", "Thal", "Ul", "Vael", "Vor", "Zar"
+]
+
+world_suffixes = [
+    "dor", "thas", "mir", "fell", "holm", "wynn", "ran", "mor", "thorne", "lor",
+    "eth", "ven", "dain", "quil", "drass", "nor", "ris", "vaar", "kaar", "zul", "onir"
+]
+
+world_name = rng.choice(world_prefixes) + rng.choice(world_suffixes)
 
 
 
 class Civilization:
+    def get_summary_for_api(self) -> str:
+        total_population = sum(city.population for city in self.cities)
+        summary = [
+            f"Civilization Name: {self.name}",
+            f"Age: {self.age} turns",
+            f"Number of Cities: {len(self.cities)}",
+            f"Total Population: {total_population}",
+            f"Military Strength: {self.military_strength}",
+            "Resource Holdings:"
+        ]
+
+        for resource, amount in self.resources.items():
+            summary.append(f"- {resource}: {amount}")
+
+        summary.append(f"Number of Cities: {len(self.cities)}")
+
+        return "\n".join(summary)
+
     def print_summary(self):
         print("="*40)
         print(f"Summary for Civilization: {self.name}")
@@ -1661,26 +1698,13 @@ def main():
     temp_type, temperature = create_temp_map(WORLD_SIZE,WORLD_SEED)
     surface_resources,subt_resources = populate_resources_3(altitude,fault_lines,WORLD_SIZE,temp_type,0.4,0.6,WORLD_SEED)
 
-    # print("Unique values in surface_resources after generation:", np.unique(surface_resources))
-    # print("Unique values in subt_resources after generation:", np.unique(subt_resources))
-
-    
-    
-
-    #DISPlAY MAPS
-    # Display_Interactive_Maps(altitude,temperature,temp_type,WORLD_SIZE,WORLD_SEED,seedAsString)
-
-    # plt.show()
-
-
     #CIVILIZATIONS
     fake = Faker()
 
     
-
     civilizations = []
     civ_territories_map = np.zeros((WORLD_SIZE,WORLD_SIZE))
-    for civs in range(3): # 1 starting civilizations         int(rng.uniform(1,6))
+    for civs in range(5): # 1 starting civilizations         int(rng.uniform(1,6))
         origin = tuple(rng.choice(find_possible_civ_origins(surface_resources,altitude,temperature,WORLD_SIZE,civ_territories_map)) )
         civilizations.append(Civilization(civs,origin))
 
@@ -1688,27 +1712,27 @@ def main():
     update_civ_map(civ_territories_map,civilizations) #initial territories
 
     year = 0
-
-    while year < 1000:
-        if year <250 and year % 50 == 0:
+    history = {civ.name: [] for civ in civilizations}
+    while year <= 1000:
+        if year %250 == 0:
             print(f"Processing year {year}")
-            for civ in civilizations:
-                civ.print_summary()
-
-        
-        # elif year % 250 == 0:
-        #     print(f"Processing year {year}")
-        #     for civ in civilizations:
-        #         civ.print_summary()
         update_civ_map(civ_territories_map,civilizations) #initial territories
         for civ in civilizations:
             civ.simulate_turn(surface_resources,subt_resources,altitude,civ_territories_map)
             update_civ_map(civ_territories_map,civilizations)
-        year+=1
     
+            if year % 100 == 0:
+                summary = civ.get_summary_for_api()
+                history[civ.name].append(summary)
+        year+=1
+
+    print("CIVILIZATION SIMULATION COMPLETE")
+    cost = 0
     for civs in civilizations:
-        civs.print_summary()
-   
+        print(f"{civs.name} history entries:", len(history[civs.name]))
+        cost += simulate_civ_history(world_name,civs.name, history[civs.name])
+    print("CIVILIZATION HISTORY GENERATED")
+    print(f"THIS COSTED ${cost}")
     display_worldgen_dashboard(altitude, temp_type, fault_lines, surface_resources, subt_resources, civ_territories_map)
     # update_civ_map(civ_territories_map, civilizations)
     # plt.figure()
