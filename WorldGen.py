@@ -1360,23 +1360,52 @@ class City:
         self.next_upgrade = 0
         self.city_upgrades = {
             "Granary": {
-                "description": "Improves grain production capacity.",
-                "cost": {"Wood": 50, "Stone": 30},
-                "benefits": {"Grain": 10},
-                "requires": None
+                "description": "Improves grain production.",
+                "cost": {"Wood": 80, "Stone": 30},
+                "benefits": {"Grain": 15},
+                "requires": {},
+                "upkeep": {"Gold": 2},
             },
+            "WoodMill": {
+                "description": "Improves Wood production.",
+                "cost": {"Wood": 100 },
+                "benefits": {"Wood": 15},
+                "requires": {"Granary"},
+                "upkeep": {"Wood": 5, "Gold": 5},
+            },
+            "Mine": {
+                "description": "Improves stone production.",
+                "cost": {"Wood": 100 },
+                "benefits": {"Stone": 15},
+                "requires": {"Granary"},
+                "upkeep": {"Wood": 5, "Gold": 2},
+            },
+
+
             "Workshop": {
-                "description": "Increases production of refined materials.",
-                "cost": {"Wood": 80, "Stone": 50, "Gold": 20},
-                "benefits": {"Iron": 5, "Coal": 5},
-                "requires": "Granary"
+                "description": "Increases output of refined materials like iron and coal.",
+                "cost": {"Wood": 120, "Stone": 60, "Gold": 40},
+                "benefits": {"Iron": 8, "Coal": 6},
+                "requires": {"Granary", "Mine"},
+                "upkeep": {"Gold": 3, "Wood": 10, "Stone": 5},
             },
+
+            "Blacksmith": {
+                "description": "Produces military strength and contributes to technological progress.",
+                "cost": {"Wood": 100, "Stone": 70, "Iron": 20, "Gold": 60},
+                "benefits": {"Military": 20, "Tech": 5},
+                "requires": {"Workshop","WoodMill"},
+                "upkeep": {"Gold": 4, "Iron": 2, "Coal": 5},
+            },
+
             "Marketplace": {
-                "description": "Boosts gold income through trade.",
-                "cost": {"Wood": 60, "Stone": 40, "Gold": 50},
-                "benefits": {"Gold": 25},
-                "requires": "Workshop"
+                "description": "Generates gold income through trade routes and taxation.",
+                "cost": {"Wood": 90, "Stone": 50, "Gold": 100},
+                "benefits": {"Gold": 12},
+                "requires": {"Workshop","WoodMill"},
+                "upkeep": {"Grain": 5},
             },
+
         }
         self.resources_dict = {
         0: "None",
@@ -1408,6 +1437,7 @@ class City:
         grain_required = self.population // 20
         wood_required = self.population // 50
         stone_required = self.population // 100
+        wood_required = self.population // 50
         gold_required = 0
         return {
             "Grain": grain_required,
@@ -1460,21 +1490,34 @@ class City:
     @staticmethod
     def can_afford(nation_resources, cost_dict):
         return all(nation_resources.get(res, 0) >= cost for res, cost in cost_dict.items())
+    
+    def has_pre_requisite(self,upgrade_name):
+                if upgrade_name == "Granary":
+                    return True
+                elif self.city_upgrades[upgrade_name]["requires"] in self.buildings:
+                    return True
+                else:
+                    return False
 
-    def upgrade_city(self, civ_resources):
-        current_upgrade = len(self.buildings)
-        if current_upgrade == 0:
-            upgrade = "Granary"
-        elif current_upgrade == 1:
-            upgrade = "Workshop"
-        elif current_upgrade == 2:
-            upgrade = "Marketplace"
-        else:
-            return
-        if self.can_afford(civ_resources, self.city_upgrades[upgrade]["cost"]):
-            for k, v in self.city_upgrades[upgrade]["cost"].items():
-                civ_resources[k] -= v
-            self.buildings.append(upgrade)
+    def upgrade_city(self, civ_resources): 
+        available_upgrades = []
+        for building_name,building_data in self.city_upgrades.items():
+            if building_name not in self.buildings:
+                if set(building_data.get("requires")).issubset(set(self.buildings)): #meets the requirements
+                    if self.can_afford(civ_resources,building_data.get("cost")): #can afford the purchase
+                        available_upgrades.append(building_name)
+        priority_list = ["Granary","Mine","WoodMill","Workshop","Blacksmith","Marketplace"]
+
+        for upgrade_name in priority_list:
+            if upgrade_name in available_upgrades:
+                for k, v in self.city_upgrades[upgrade_name]["cost"].items():
+                    civ_resources[k] -= v
+                self.buildings.append(upgrade_name)
+                break
+
+
+
+
 
 
 def update_civ_map(civ_map,civilizations):
@@ -1525,6 +1568,8 @@ def main():
     year = 0
 
     while year < 1000:
+        if year % 250 == 0:
+            print(f"Processing year {year}")
         update_civ_map(civ_territories_map,civilizations) #initial territories
         for civ in civilizations:
             civ.simulate_turn(surface_resources,subt_resources,altitude,civ_territories_map)
