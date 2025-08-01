@@ -313,10 +313,10 @@ def create_fault_lines(size, vor_regions,plate_list,vor_seeds): #returns binary 
     # plt.colorbar()
     # plt.title("Generated Voronoi Edges")
 
-    plt.figure("FaultMap ")
-    plt.imshow(fault_map,cmap="gray",label="Boundaries")
-    plt.colorbar()
-    plt.title("Generated Fault Map")
+    # plt.figure("FaultMap ")
+    # plt.imshow(fault_map,cmap="gray",label="Boundaries")
+    # plt.colorbar()
+    # plt.title("Generated Fault Map")
     # plt.show()
     return is_vor_border,fault_map
 def create_tectonic_plates(vor_ID,vor_regions,size,WORLD_SEED): # returns dict of plates
@@ -396,10 +396,10 @@ def create_fault_map(vor_ID_list, vor_regions_map, tect_plates, size, WORLD_SEED
         fault_lines_map[rr, cc] = 1
 
     # Display
-    plt.figure("Fault Map")
-    plt.imshow(fault_lines_map, cmap="gray")
-    plt.title("All Fault Lines (with Infinite Edges)")
-    plt.colorbar()
+    # plt.figure("Fault Map")
+    # plt.imshow(fault_lines_map, cmap="gray")
+    # plt.title("All Fault Lines (with Infinite Edges)")
+    # plt.colorbar()
     # plt.show()
 
     return fault_lines_map
@@ -567,10 +567,10 @@ def populate_resources(altitude_map,fault_lines_map,size,temp_type, water_thresh
     "#808080",  # 8: Stone (stone gray)
 ]
 
-    plt.figure("RESOURCE MAP")
-    plt.imshow(resource_map, cmap=ListedColormap(resource_colors),interpolation='nearest')
-    plt.title("RESOURCE MAP")
-    plt.colorbar()
+    # plt.figure("RESOURCE MAP")
+    # plt.imshow(resource_map, cmap=ListedColormap(resource_colors),interpolation='nearest')
+    # plt.title("RESOURCE MAP")
+    # plt.colorbar()
 
     return resources_dict, resource_map
 # def populate_resources_2(altitude_map, fault_lines_map, size, temp_type, water_threshold, mtn_threshold, WORLD_SEED):
@@ -867,15 +867,15 @@ def populate_resources_3(altitude_map, fault_lines_map, size, temp_type, water_t
 ]
     cmap = ListedColormap(resource_colors)
 
-    plt.figure("SURFACE RESOURCE MAP")
-    plt.imshow(surface_resource_map, cmap=cmap, interpolation='nearest', vmin=0, vmax=8)
-    plt.title("SURFACE RESOURCE MAP")
-    plt.colorbar(ticks=range(len(resource_colors)))
+    # plt.figure("SURFACE RESOURCE MAP")
+    # plt.imshow(surface_resource_map, cmap=cmap, interpolation='nearest', vmin=0, vmax=8)
+    # plt.title("SURFACE RESOURCE MAP")
+    # plt.colorbar(ticks=range(len(resource_colors)))
 
-    plt.figure("SUBTERRANEAN RESOURCE MAP")
-    plt.imshow(subterranean_resource_map, cmap=cmap, interpolation='nearest', vmin=0, vmax=8)
-    plt.title("SUBTERRANEAN RESOURCE MAP")
-    plt.colorbar(ticks=range(len(resource_colors)))
+    # plt.figure("SUBTERRANEAN RESOURCE MAP")
+    # plt.imshow(subterranean_resource_map, cmap=cmap, interpolation='nearest', vmin=0, vmax=8)
+    # plt.title("SUBTERRANEAN RESOURCE MAP")
+    # plt.colorbar(ticks=range(len(resource_colors)))
     return surface_resource_map, subterranean_resource_map
 
                 
@@ -1155,7 +1155,7 @@ def find_possible_civ_origins(surface_resource_map,altitude_map,temperature_map,
 
 # seedAsString = input("Enter a World Seed: ")
 
-WORLD_SIZE = 100
+WORLD_SIZE = 50
 
 print("Starting Program...")
     
@@ -1229,7 +1229,8 @@ class Civilization:
     def generate_fantasy_nation():
         nation_prefixes = ['Kingdom of', 'Empire of', 'The Republic of', 'Dominion of', 'The Free Lands of']
         return f"{random.choice(nation_prefixes)} {rng.choice(prefixes) + rng.choice(suffixes)}"
-    def __init__(self, origin_coords):
+    def __init__(self, ID, origin_coords):
+        self.ID= ID
         self.name = self.generate_fantasy_nation()
         self.tiles = set([tuple(origin_coords)])
         self.population = 50
@@ -1248,8 +1249,9 @@ class Civilization:
         self.age = 0
         self.tech_level = 0
         self.neighbors = {}
+        self.max_cities = 5 + self.population//1000
 
-        self.cities = list([City(self.name, "Capital", origin_coords)])
+        self.cities = list([City(ID, "Capital", origin_coords)])
 
         self.resources_dict = {
         0: "None",
@@ -1280,7 +1282,7 @@ class Civilization:
         number = len(self.cities) + 1
         city_name = "City " + str(number)
 
-        new_city = City(self.name, city_name, coords)
+        new_city = City(self.ID, city_name, coords)
         self.cities.append(new_city)
         self.tiles.update(new_city.tiles)
         return True
@@ -1290,16 +1292,13 @@ class Civilization:
         return all(nation_resources.get(res, 0) >= cost for res, cost in cost_dict.items())
 
     def can_afford_city_building(self, city):
-        current_upgrade = len(city.buildings)
-        if current_upgrade == 0:
-            return self.can_afford(self.resources, city.city_upgrades["Granary"]["cost"])
-        elif current_upgrade == 1:
-            return self.can_afford(self.resources, city.city_upgrades["Workshop"]["cost"])
-        elif current_upgrade == 2:
-            return self.can_afford(self.resources, city.city_upgrades["Marketplace"]["cost"])
-        else:
-            return False
 
+        for building_name,building_data in city.city_upgrades.items():
+            if building_name not in city.buildings:
+                if set(building_data.get("requires")).issubset(set(city.buildings)): #meets the requirements
+                    if self.can_afford(self.resources,building_data.get("cost")): #can afford the purchase
+                        return True
+        return False
     def take_action(self, resource_map, altitude_map, civ_land_map):
         possible_actions = []
         settlement_cost = {
@@ -1307,7 +1306,7 @@ class Civilization:
             "Wood": 60,
             "Stone": 40,
         }
-        if self.can_afford(self.resources, settlement_cost):
+        if self.can_afford(self.resources, settlement_cost) and len(self.cities) < self.max_cities:
             possible_actions.append("settle_city")
         for index, city in enumerate(self.cities):
             if self.can_afford_city_building(city):
@@ -1332,9 +1331,10 @@ class Civilization:
         resource_map = np.array([surface_resource_map, subt_resource_map])
         curr_pop = 0
         for city in self.cities:
-            city.simulate_city_turn(self.resources, self.tiles, resource_map)
+            city.simulate_city_turn(self.resources, self.tiles, resource_map,civ_land_map)
             curr_pop += city.population
         self.population = curr_pop
+        self.max_cities = 5 + self.population// 500
         self.update_military_strength()
         self.take_action(resource_map, altitude_map, civ_land_map)
         self.age += 1
@@ -1407,6 +1407,17 @@ class City:
             },
 
         }
+        self.building_pop_requirements = {
+            "Granary": 0,
+            "Mine": 100,
+            "WoodMill": 150,
+            "Workshop": 250,
+            "Blacksmith": 300,
+            "Marketplace": 350,
+        }
+
+        
+        
         self.resources_dict = {
         0: "None",
         1: "Wood",
@@ -1430,7 +1441,7 @@ class City:
                     resource = self.resources_dict[resource_map[layer][y][x]]
                     if resource != "None":
                         resources_gathered[resource] += 1
-            resources_gathered["Gold"] += self.population * 0.01
+            
         return resources_gathered
 
     def city_upkeep(self):
@@ -1465,11 +1476,11 @@ class City:
                 if resource == "Grain":
                     self.population += net_change * 1.0
 
-    def simulate_city_turn(self, civ_resources, civ_tiles, resource_map):
+    def simulate_city_turn(self, civ_resources, civ_tiles, resource_map,civ_land_map):
         self.city_maint(civ_resources, resource_map)
         if self.population > self.radius_threshold.get(min(self.current_radius + 1, 10), float('inf')):
             self.current_radius += 1
-            new_tiles = self.get_surrounding_tiles(self.location, WORLD_SIZE, self.current_radius)
+            new_tiles = self.get_surrounding_tiles_2(self.location, WORLD_SIZE, self.current_radius,civ_land_map)
             self.tiles.update(new_tiles)
             civ_tiles.update(self.tiles)
         self.age += 1
@@ -1483,8 +1494,20 @@ class City:
             for dx in range(-radius, radius + 1):
                 ny, nx = yc + dy, xc + dx
                 if 0 <= ny < height and 0 <= nx < width:
-                    if np.sqrt(dy**2 + dx**2) <= radius:
+                    if dy**2 + dx**2 <= radius**2: 
                         tiles.add((ny, nx))
+        return tiles
+    def get_surrounding_tiles_2(self,origin, WORLD_SIZE, radius,civ_land_map):
+        yc, xc = tuple(origin)
+        height, width = WORLD_SIZE, WORLD_SIZE
+        tiles = set()
+        for dy in range(-radius, radius + 1):
+            for dx in range(-radius, radius + 1):
+                ny, nx = yc + dy, xc + dx
+                if 0 <= ny < height and 0 <= nx < width:
+                    if dy**2 + dx**2 <= radius**2:
+                        if civ_land_map[nx][ny] == self.owner or civ_land_map[nx][ny] == 0: #if tile is unowned or belongs to self
+                            tiles.add((ny, nx))
         return tiles
 
     @staticmethod
@@ -1505,9 +1528,11 @@ class City:
             if building_name not in self.buildings:
                 if set(building_data.get("requires")).issubset(set(self.buildings)): #meets the requirements
                     if self.can_afford(civ_resources,building_data.get("cost")): #can afford the purchase
-                        available_upgrades.append(building_name)
-        priority_list = ["Granary","Mine","WoodMill","Workshop","Blacksmith","Marketplace"]
+                        if self.population >= self.building_pop_requirements[building_name]: #meet the pop requirement
 
+                            available_upgrades.append(building_name)
+        priority_list = ["Granary","Mine","WoodMill","Workshop","Blacksmith","Marketplace"]
+        
         for upgrade_name in priority_list:
             if upgrade_name in available_upgrades:
                 for k, v in self.city_upgrades[upgrade_name]["cost"].items():
@@ -1526,7 +1551,103 @@ def update_civ_map(civ_map,civilizations):
             civ_map[y][x] = (index + 1)
 
 
-    
+import matplotlib.pyplot as plt
+
+import matplotlib.pyplot as plt
+
+def display_worldgen_dashboard( #CHAT GPT'D
+    altitude_map, temp_type,
+    fault_lines_map,
+    surface_resource_map,
+    subsurface_resource_map,
+    territory_map
+):
+    """
+    Displays all major worldgen maps in a single figure window.
+
+    Parameters:
+    - terrain_temp_map: already color-mapped terrain + temperature map
+    - fault_lines_map, surface_resource_map, subsurface_resource_map, territory_map: raw data arrays
+    - colormaps: dict of colormap names or objects keyed by:
+        "terrain", "fault", "surface", "subsurface", "territory"
+    """
+    # Define terrain colormap using your temperature theme
+    bounds = [0.0, 0.4, 0.435, 0.6, 0.9, 1.0]
+    color_themes = {
+        "cold": {
+            "ocean": "#1B3B6F", "sand": "#E1D9D1", "grass": "#A0C4B0",
+            "lower_mountain": "#8B9DA6", "peak": "#FFFFFF"
+        },
+        "mild": {
+            "ocean": "#2E8BC0", "sand": "#F2E2C4", "grass": "#7BC47F",
+            "lower_mountain": "#A9A9A9", "peak": "#FFFFFF"
+        },
+        "hot": {
+            "ocean": "#005C5C", "sand": "#E0B084", "grass": "#C2B280",
+            "lower_mountain": "#A0522D", "peak": "#FFFAF0"
+        }
+    }
+    theme = color_themes[temp_type]
+    terrain_cmap = ListedColormap([
+        theme["ocean"], theme["sand"], theme["grass"],
+        theme["lower_mountain"], theme["peak"]
+    ])
+    terrain_norm = BoundaryNorm(bounds, terrain_cmap.N)
+
+    # Set up dashboard
+    fig, axs = plt.subplots(2, 3, figsize=(18, 10))
+    fig.subplots_adjust(wspace=0.4, hspace=0.4)
+
+    fig.suptitle(f"WorldGen Dashboard – Seed: {seedAsString}", fontsize=18)
+
+    # 1. Terrain + Temperature (elevation themed)
+    im0 = axs[0, 0].imshow(altitude_map, cmap=terrain_cmap, norm=terrain_norm)
+    axs[0, 0].set_title("Terrain + Temperature")
+    axs[0, 0].axis('off')
+    fig.colorbar(im0, ax=axs[0, 0], boundaries=bounds, shrink=0.7)
+
+    # 2. Fault Lines
+    im1 = axs[0, 1].imshow(fault_lines_map, cmap='gray')
+    axs[0, 1].set_title("Fault Lines")
+    axs[0, 1].axis('off')
+    fig.colorbar(im1, ax=axs[0, 1], shrink=0.7)
+
+    resource_colors = [
+    "#000000",  # 0: None
+    "#228B22",  # 1: Wood
+    "#ADFF2F",  # 2: Grain
+    "#4B4B4B",  # 3: Coal
+    "#A9A9A9",  # 4: Iron
+    "#FFD700",  # 5: Gold
+    "#f5deb3",  # 6: Salt
+    "#8B4513",  # 7: Oil
+    "#808080",  # 8: Stone
+    ]
+    resource_cmap = ListedColormap(resource_colors)
+    # 3. Surface Resources
+    im2 = axs[0, 2].imshow(surface_resource_map, cmap= resource_cmap,vmin = 0,vmax = 8)
+    axs[0, 2].set_title("Surface Resources")
+    axs[0, 2].axis('off')
+    fig.colorbar(im2, ax=axs[0, 2], shrink=0.7)
+
+    # 4. Subsurface Resources
+    im3 = axs[1, 0].imshow(subsurface_resource_map, cmap=resource_cmap,vmin = 0,vmax = 8)
+    axs[1, 0].set_title("Subsurface Resources")
+    axs[1, 0].axis('off')
+    fig.colorbar(im3, ax=axs[1, 0], shrink=0.7)
+
+    # 5. Civilization Territories
+    im4 = axs[1, 1].imshow(territory_map, cmap='tab20')
+    axs[1, 1].set_title("Civilization Territories")
+    axs[1, 1].axis('off')
+    fig.colorbar(im4, ax=axs[1, 1], shrink=0.7)
+
+    # 6. Empty or future plot slot
+    axs[1, 2].axis('off')
+
+    plt.tight_layout(rect=[0, 0, 1, 0.95])
+    plt.show()
+
 
 def main():
 
@@ -1547,7 +1668,8 @@ def main():
     
 
     #DISPlAY MAPS
-    Display_Interactive_Maps(altitude,temperature,temp_type,WORLD_SIZE,WORLD_SEED,seedAsString)
+    # Display_Interactive_Maps(altitude,temperature,temp_type,WORLD_SIZE,WORLD_SEED,seedAsString)
+
     # plt.show()
 
 
@@ -1558,9 +1680,9 @@ def main():
 
     civilizations = []
     civ_territories_map = np.zeros((WORLD_SIZE,WORLD_SIZE))
-    for civs in range(int(rng.uniform(1,6))): # 1 starting civilizations
+    for civs in range(3): # 1 starting civilizations         int(rng.uniform(1,6))
         origin = tuple(rng.choice(find_possible_civ_origins(surface_resources,altitude,temperature,WORLD_SIZE,civ_territories_map)) )
-        civilizations.append(Civilization(origin))
+        civilizations.append(Civilization(civs,origin))
 
 
     update_civ_map(civ_territories_map,civilizations) #initial territories
@@ -1568,22 +1690,32 @@ def main():
     year = 0
 
     while year < 1000:
-        if year % 250 == 0:
+        if year <250 and year % 50 == 0:
             print(f"Processing year {year}")
+            for civ in civilizations:
+                civ.print_summary()
+
+        
+        # elif year % 250 == 0:
+        #     print(f"Processing year {year}")
+        #     for civ in civilizations:
+        #         civ.print_summary()
         update_civ_map(civ_territories_map,civilizations) #initial territories
         for civ in civilizations:
             civ.simulate_turn(surface_resources,subt_resources,altitude,civ_territories_map)
+            update_civ_map(civ_territories_map,civilizations)
         year+=1
     
     for civs in civilizations:
         civs.print_summary()
    
-    update_civ_map(civ_territories_map, civilizations)
-    plt.figure()
-    plt.imshow(civ_territories_map, cmap='tab20', interpolation='nearest', aspect='equal')
-    plt.title("Civilization Territories")
-    plt.axis('off')
-    plt.show()
+    display_worldgen_dashboard(altitude, temp_type, fault_lines, surface_resources, subt_resources, civ_territories_map)
+    # update_civ_map(civ_territories_map, civilizations)
+    # plt.figure()
+    # plt.imshow(civ_territories_map, cmap='tab20', interpolation='nearest', aspect='equal')
+    # plt.title("Civilization Territories")
+    # plt.axis('off')
+    # plt.show()
 
     
 
