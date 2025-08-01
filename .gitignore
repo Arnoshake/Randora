@@ -1,0 +1,24 @@
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Environment
+venv/
+.env
+
+# IDE/editor files
+*.swp
+*.swo
+*.DS_Store
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# Jupyter notebooks checkpoints
+.ipynb_checkpoints/
+
+# OS
+Thumbs.db
+.DS_Store
