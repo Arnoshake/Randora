@@ -1721,12 +1721,14 @@ def main():
             civ.simulate_turn(surface_resources,subt_resources,altitude,civ_territories_map)
             update_civ_map(civ_territories_map,civilizations)
     
-            if year % 100 == 0:
-                summary = civ.get_summary_for_api()
-                history[civ.name].append(summary)
+            # if year % 100 == 0:
+            #     summary = civ.get_summary_for_api()
+            #     history[civ.name].append(summary)
         year+=1
 
     print("CIVILIZATION SIMULATION COMPLETE")
+    display_worldgen_dashboard(altitude, temp_type, fault_lines, surface_resources, subt_resources, civ_territories_map)
+    return
     cost = 0
     for civs in civilizations:
         print(f"{civs.name} history entries:", len(history[civs.name]))
