@@ -24,7 +24,7 @@ from collections import defaultdict
 
 from faker import Faker #name gen
 
-from gpt_utils import simulate_civ_history  # API CALLS
+# from gpt_utils import simulate_civ_history  # API CALLS
 
 
 
